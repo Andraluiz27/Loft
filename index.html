@@ -277,8 +277,6 @@
 
         function updateUI() {
             if (!localGameState || !localGameState.players) return;
-            
-            // Se ainda não temos um ID de jogador local, não podemos renderizar
             if (!localPlayerId) return;
 
             const player = localGameState.players[localPlayerId];
@@ -342,14 +340,21 @@
 
             const chipPanel = document.getElementById('chip-panel');
             const nextTurnBtn = document.getElementById('next-turn-btn');
+            const confirmChipsBtn = document.getElementById('confirm-chips-btn');
 
-            if (localGameState.phase === 'SELECAO_FICHAS' && myTurn) {
+            if (localGameState.phase === 'SELECAO_FICHAS') {
                 chipPanel.classList.remove('hidden');
                 const chipButtonsEl = document.getElementById('chip-buttons');
                 chipButtonsEl.innerHTML = '';
-                [...Array(player.chips[5])].forEach(() => createChipButton(5, chipButtonsEl));
-                [...Array(player.chips[7])].forEach(() => createChipButton(7, chipButtonsEl));
-
+                if (!localGameState.confirmations[localPlayerId]) {
+                    [...Array(player.chips[5])].forEach(() => createChipButton(5, chipButtonsEl));
+                    [...Array(player.chips[7])].forEach(() => createChipButton(7, chipButtonsEl));
+                    confirmChipsBtn.disabled = false;
+                    confirmChipsBtn.textContent = 'Confirmar Fichas';
+                } else {
+                    confirmChipsBtn.disabled = true;
+                    confirmChipsBtn.textContent = 'Aguardando Oponente';
+                }
             } else {
                 chipPanel.classList.add('hidden');
             }
@@ -375,7 +380,6 @@
         }
 
         async function handleBoardCellClick(row, col) {
-            // Usamos uma cópia para evitar modificar o estado local diretamente antes de enviar ao Firestore
             const gs = JSON.parse(JSON.stringify(localGameState));
             if (gs.currentPlayerId !== localPlayerId) return;
 
@@ -384,64 +388,64 @@
                 const highlighted = gs.highlightedCell;
                 if (!highlighted || highlighted[0] !== row || highlighted[1] !== col) { alert("Você só pode jogar no espaço destacado."); return; }
 
+                const playKey = `${row},${col}`;
+                const play = gs.playsThisRow[playKey] || { player1: { card: null, chip: 0 }, player2: { card: null, chip: 0 } };
+
+                if (play[localPlayerId].card) return; // Já jogou neste espaço
+
                 const player = gs.players[localPlayerId];
                 player.hand = player.hand.filter(c => c.id !== selectedCard.id);
-                
-                let play = {
-                    player1: { card: null, chip: 0 },
-                    player2: { card: null, chip: 0 }
-                };
                 play[localPlayerId].card = selectedCard;
-
-                if (gs.gameMode === 'cpu') {
-                     const opponent = gs.players.player2;
-                     if(opponent.hand.length > 0) {
-                        const cpuCardIndex = Math.floor(Math.random() * opponent.hand.length);
-                        play.player2.card = opponent.hand.splice(cpuCardIndex, 1)[0];
-                     }
-                }
+                gs.playsThisRow[playKey] = play;
                 
-                gs.playsThisRow[`${row},${col}`] = play;
-                gs.board[row][col] = { revealed: false };
                 selectedCard = null;
 
-                gs.spacesPlayedThisRow++;
-                if (gs.spacesPlayedThisRow >= 3) {
-                    gs.phase = 'SELECAO_FICHAS';
-                    gs.highlightedCell = null;
-                    gs.statusMessage = "Fase de Fichas! Adicione fichas se desejar.";
-                } else {
-                    const nextCol = col + 1;
-                    gs.highlightedCell = [row, nextCol];
-                }
-                
-                if (gs.gameMode === 'cpu') {
-                    localGameState = gs;
-                    updateUI();
-                } else {
-                    await updateFirestoreState(gs);
+                const opponentId = localPlayerId === 'player1' ? 'player2' : 'player1';
+
+                // Se o P1 acabou de jogar, é a vez do P2 no mesmo espaço
+                if (localPlayerId === 'player1') {
+                    gs.currentPlayerId = 'player2';
+                    gs.statusMessage = `Vez de ${gs.players.player2.name} jogar no mesmo espaço.`;
+                } 
+                // Se o P2 acabou de jogar, o espaço está completo
+                else {
+                    gs.board[row][col] = { revealed: false }; // Marca como ocupado
+                    gs.spacesPlayedThisRow++;
+                    gs.currentPlayerId = 'player1'; // P1 começa o próximo espaço
+
+                    if (gs.spacesPlayedThisRow >= 3) {
+                        gs.phase = 'SELECAO_FICHAS';
+                        gs.highlightedCell = null;
+                        gs.statusMessage = "Fase de Fichas! Adicione fichas se desejar.";
+                    } else {
+                        const nextCol = col + 1;
+                        gs.highlightedCell = [row, nextCol];
+                        gs.statusMessage = `Vez de ${gs.players.player1.name} jogar no próximo espaço.`;
+                    }
                 }
             }
 
             if (gs.phase === 'SELECAO_FICHAS') {
+                 if (gs.confirmations[localPlayerId]) return;
                  if (selectedChipValue === null) { alert("Selecione uma ficha primeiro!"); return; }
+                 
+                 // Permite colocar ficha apenas na linha atual
+                 if (row !== gs.currentRow) { alert("Só pode colocar fichas na linha atual."); return;}
+
                  const play = gs.playsThisRow[`${row},${col}`];
-                 if (!play || play[localPlayerId].chip > 0) return;
+                 // Verifica se o jogador está tentando por a ficha na sua própria carta e se já não tem uma
+                 if (!play || !play[localPlayerId].card || play[localPlayerId].chip > 0) return;
                  
                  const player = gs.players[localPlayerId];
                  if (player.chips[selectedChipValue] > 0) {
                      player.chips[selectedChipValue]--;
                      play[localPlayerId].chip = selectedChipValue;
                      selectedChipValue = null;
-                     
-                     if (gs.gameMode === 'cpu') {
-                        localGameState = gs;
-                        updateUI();
-                     } else {
-                        await updateFirestoreState(gs);
-                     }
                  } else { alert(`Você não tem mais fichas de valor ${selectedChipValue}.`); }
             }
+            
+            if (gs.gameMode === 'cpu') { localGameState = gs; updateUI(); } 
+            else { await updateFirestoreState(gs); }
         }
         
         function handleChipClick(value, buttonEl) {
@@ -452,22 +456,31 @@
         
         document.getElementById('confirm-chips-btn').addEventListener('click', async () => {
              const gs = JSON.parse(JSON.stringify(localGameState));
-             gs.phase = 'REVELACAO';
-             gs.statusMessage = "Revelando os resultados...";
+             if(gs.phase !== 'SELECAO_FICHAS' || gs.confirmations[localPlayerId]) return;
+             
+             gs.confirmations[localPlayerId] = true;
 
-             if (gs.gameMode === 'cpu') {
-                const cpu = gs.players.player2;
-                Object.values(gs.playsThisRow).forEach(play => {
-                    const card = play.player2.card;
-                    if (card.valor > 30 && cpu.chips[7] > 0) { play.player2.chip = 7; cpu.chips[7]--; }
-                    else if (card.valor > 15 && cpu.chips[5] > 0) { play.player2.chip = 5; cpu.chips[5]--; }
-                });
-                localGameState = gs;
-                updateUI();
-                setTimeout(() => revealRow(gs.currentRow), 1000);
+             if (gs.confirmations.player1 && gs.confirmations.player2) {
+                gs.phase = 'REVELACAO';
+                gs.statusMessage = "Ambos confirmaram! Revelando resultados...";
+                
+                // A revelação começa após um pequeno delay
+                setTimeout(() => revealRow(gs.currentRow), 1500);
+
              } else {
-                await updateFirestoreState(gs);
+                gs.statusMessage = "Você confirmou. Aguardando oponente...";
              }
+
+             if (gs.gameMode === 'cpu') { 
+                gs.players.player2.chips['5'] -= 1; // Simula CPU usando uma ficha
+                gs.confirmations.player2 = true;
+                localGameState = gs; 
+                if (gs.confirmations.player1 && gs.confirmations.player2) {
+                    setTimeout(() => revealRow(gs.currentRow), 1500);
+                }
+                updateUI();
+             } 
+             else { await updateFirestoreState(gs); }
         });
 
         function revealRow(rowIndex) {
@@ -475,13 +488,14 @@
             const revealInterval = setInterval(async () => {
                 if(colIndex >= 3) {
                     clearInterval(revealInterval);
-                    // TODO: Finalizar a linha e avançar
+                    // TODO: Finalizar a linha e avançar para a próxima ou fim do turno
                     return;
                 }
                 
                 const gs = JSON.parse(JSON.stringify(localGameState));
                 const play = gs.playsThisRow[`${rowIndex},${colIndex}`];
-                if(play && play.player1.card && play.player2.card) { // Checa se ambos os jogadores jogaram
+
+                if(play && play.player1.card && play.player2.card) {
                     const p1Card = play.player1.card;
                     const p2Card = play.player2.card;
                     p1Card.valor_final = p1Card.valor + play.player1.chip;
@@ -490,16 +504,12 @@
                     let winnerCard;
                     if(p1Card.valor_final > p2Card.valor_final) winnerCard = p1Card;
                     else if (p2Card.valor_final > p1Card.valor_final) winnerCard = p2Card;
-                    else winnerCard = { tipo: 'Empate', imagem: '' }; // Empate
+                    else winnerCard = { tipo: 'Empate', imagem: '' };
                     
                     gs.board[rowIndex][colIndex] = { revealed: true, card: winnerCard };
                     
-                    if (gs.gameMode === 'cpu') {
-                        localGameState = gs;
-                        updateUI();
-                    } else {
-                        await updateFirestoreState(gs);
-                    }
+                    if (gs.gameMode === 'cpu') { localGameState = gs; updateUI(); } 
+                    else { await updateFirestoreState(gs); }
                 }
                 colIndex++;
             }, 2500);
@@ -512,7 +522,7 @@
             const baralhoExtravagante = shuffle(criar_baralho('extravagante'));
             return {
                 gameId, gameMode: mode, turn: 1, phase: 'SELECAO_CARTAS',
-                statusMessage: `Aguardando oponente...`, // Mensagem inicial
+                statusMessage: `Aguardando oponente...`,
                 board: {
                     '0': { '0': null, '1': null, '2': null },
                     '1': { '0': null, '1': null, '2': null },
@@ -524,6 +534,7 @@
                 },
                 currentPlayerId: 'player1', highlightedCell: [0, 0], currentRow: 0,
                 spacesPlayedThisRow: 0, playsThisRow: {},
+                confirmations: { player1: false, player2: false } // << NOVO CAMPO
             };
         }
         
@@ -547,21 +558,17 @@
              const initialState = createInitialGameState(playerName, "Aguardando...", "online");
              await setDoc(doc(db, gamesCollectionPath, gameId), initialState);
 
-             // Mostra o ID e a mensagem de espera
-             document.getElementById('game-id-display').textContent = gameId;
+             document.getElementById('game-id-display').textContent = newGameId;
              document.getElementById('game-id-section').classList.remove('hidden');
-             
-             // Desabilita botões para evitar ações duplicadas
              document.getElementById('create-game-btn').disabled = true;
              document.getElementById('join-game-btn').disabled = true;
              
-             // Adiciona uma mensagem de "esperando" no lobby
              const waitingMsg = document.createElement('p');
              waitingMsg.textContent = 'Aguardando oponente...';
              waitingMsg.className = 'text-teal-300 mt-4 animate-pulse';
              document.getElementById('online-options').appendChild(waitingMsg);
 
-             listenToGameChanges(gameId);
+             listenToGameChanges(newGameId);
         });
 
         document.getElementById('join-game-btn').addEventListener('click', async () => {
@@ -576,10 +583,9 @@
                 localPlayerId = 'player2';
                 let gameData = gameSnap.data();
                 gameData.players.player2.name = playerName;
-                // Atualiza a mensagem de status para o início do jogo
                 gameData.statusMessage = `${gameData.players.player1.name} começa o jogo!`;
                 await setDoc(gameRef, gameData);
-                listenToGameChanges(gameId);
+                listenToGameChanges(joinId);
             } else { alert("Sala não encontrada ou já está cheia!"); }
         });
         
@@ -588,23 +594,18 @@
                 if (doc.exists()) {
                     const serverState = doc.data();
                     localGameState = serverState;
-                    
                     const player2Joined = serverState.players.player2.name !== "Aguardando...";
                     
-                    // Se o lobby ainda estiver visível E o jogador 2 entrou, troque para a tela do jogo
-                    if (!lobbyEl.classList.contains('hidden') && player2Joined) {
+                    if (lobbyEl.className.indexOf('hidden') !== -1 && player2Joined) {
                         lobbyEl.classList.add('hidden');
                         gameContainerEl.classList.remove('hidden');
                     }
                     
-                    // A função updateUI será chamada para atualizar a tela (seja o jogo ou o lobby)
-                    // No caso do lobby, ela não fará nada, mas no jogo, irá renderizar o estado.
-                    if (!gameContainerEl.classList.contains('hidden')) {
+                    if (gameContainerEl.className.indexOf('hidden') === -1) {
                         updateUI();
                     }
 
                 } else { 
-                    // Se o anfitrião sair, o documento é deletado.
                     if(localPlayerId === 'player2') {
                         alert("A sala foi fechada pelo anfitrião.");
                         window.location.reload();
@@ -618,7 +619,6 @@
         });
 
         window.addEventListener('beforeunload', () => {
-            // Apenas o anfitrião (player1) deleta o jogo ao sair
             if(localGameState.gameMode === 'online' && localPlayerId === 'player1' && gameId) {
                 deleteDoc(doc(db, gamesCollectionPath, gameId));
             }
