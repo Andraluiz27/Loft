@@ -29,6 +29,7 @@
             box-shadow: 0 0 20px #38bdf8;
         }
         .board-cell {
+            position: relative; /* Necessário para posicionar os indicadores de ficha */
             background-color: rgba(255, 255, 255, 0.05);
             border-radius: 8px;
             transition: background-color 0.3s, border 0.3s, transform 0.5s;
@@ -73,6 +74,30 @@
             border-color: #7dd3fc; /* border-sky-300 */
             color: white;
         }
+        /* Estilos para os indicadores de ficha no tabuleiro */
+        .chip-indicator-container {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            display: flex;
+            gap: 4px;
+            pointer-events: none; /* Impede que os indicadores bloqueiem o clique na célula */
+        }
+        .chip-indicator {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: bold;
+            color: white;
+            border: 2px solid rgba(255,255,255,0.7);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        }
+        .chip-player1 { background-color: #0ea5e9; } /* Estilo Moderno - sky-500 */
+        .chip-player2 { background-color: #d946ef; } /* Estilo Extravagante - fuchsia-500 */
     </style>
 </head>
 <body class="p-4 md:p-6">
@@ -254,7 +279,6 @@
             for (const [tipo, valores] of Object.entries(VALORES_CARTAS)) {
                 for (const valor of valores) {
                     const nome_formatado = tipo.toLowerCase().replace(/ /g, '_');
-                    // MODIFICAÇÃO: Apontando para a pasta local 'imagens'
                     const nome_ficheiro = `${estilo}_${nome_formatado}_${valor}.png`;
                     const caminho_imagem = `imagens/${nome_ficheiro}`;
                     
@@ -332,13 +356,37 @@
                     cellEl.className = 'board-cell flex items-center justify-center text-white font-bold text-lg w-32 h-24 md:w-40 md:h-28';
                     cellEl.dataset.row = i;
                     cellEl.dataset.col = j;
+                    
                     const cellState = localGameState.board[i][j];
-                     if (cellState && cellState.card) {
+                    const playData = localGameState.playsThisTurn[`${i},${j}`];
+
+                    if (cellState && cellState.card) {
                          cellEl.style.backgroundImage = `url('${cellState.card.imagem}')`;
-                    } else if (localGameState.playsThisTurn[`${i},${j}`]) {
+                    } else if (playData) {
                          cellEl.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
                          cellEl.textContent = "Ocupado";
                     }
+
+                    // Lógica para mostrar indicadores de fichas
+                    if (playData) {
+                        const indicatorContainer = document.createElement('div');
+                        indicatorContainer.className = 'chip-indicator-container';
+
+                        if (playData.player1?.chip > 0) {
+                            const p1Chip = document.createElement('div');
+                            p1Chip.className = 'chip-indicator chip-player1';
+                            p1Chip.textContent = playData.player1.chip;
+                            indicatorContainer.appendChild(p1Chip);
+                        }
+                        if (playData.player2?.chip > 0) {
+                            const p2Chip = document.createElement('div');
+                            p2Chip.className = 'chip-indicator chip-player2';
+                            p2Chip.textContent = playData.player2.chip;
+                            indicatorContainer.appendChild(p2Chip);
+                        }
+                        cellEl.appendChild(indicatorContainer);
+                    }
+
                     if (localGameState.highlightedCell && localGameState.highlightedCell[0] === i && localGameState.highlightedCell[1] === j) {
                         cellEl.classList.add('highlight');
                     }
@@ -400,9 +448,7 @@
 
         async function handleBoardCellClick(row, col) {
             let gs = JSON.parse(JSON.stringify(localGameState));
-            if (gs.currentPlayerId !== localPlayerId) return;
-
-            if (gs.phase === 'SELECAO_CARTAS') {
+            if (gs.phase === 'SELECAO_CARTAS' && gs.currentPlayerId === localPlayerId) {
                 if (!selectedCard) { 
                     statusMessageEl.textContent = "Selecione uma carta da sua mão primeiro!"; 
                     return; 
@@ -430,7 +476,7 @@
                     gs.statusMessage = `Vez de ${gs.players.player2.name} jogar no mesmo espaço.`;
                 } else {
                     gs.spacesPlayedInRow++;
-                    gs.currentPlayerId = gs.turnStarter; // Quem começa a linha, começa o próximo espaço
+                    gs.currentPlayerId = gs.turnStarter;
                     
                     if (gs.spacesPlayedInRow >= 3) {
                         gs.phase = 'SELECAO_FICHAS';
@@ -479,6 +525,7 @@
              selectedChipValue = value;
              document.querySelectorAll('.chip-btn').forEach(btn => btn.classList.remove('selected'));
              buttonEl.classList.add('selected');
+             statusMessageEl.textContent = `Ficha de valor ${value} selecionada. Clique no tabuleiro para alocar.`;
         }
         
         document.getElementById('confirm-chips-btn').addEventListener('click', async () => {
@@ -489,7 +536,6 @@
              gs.statusMessage = "Você confirmou. Aguardando oponente...";
 
              if (gs.gameMode === 'cpu') { 
-                // CPU adiciona fichas e confirma
                 const cpu = gs.players.player2;
                 for(let col=0; col<3; col++){
                     const play = gs.playsThisTurn[`${gs.currentRow},${col}`];
@@ -536,7 +582,6 @@
             if (gs.gameMode === 'online') await updateFirestoreState(gs); else { localGameState = gs; updateUI(); }
             await delay(1000);
 
-            // Revela as cartas da linha atual
             for (let col = 0; col < 3; col++) {
                 const playKey = `${gs.currentRow},${col}`;
                 const play = gs.playsThisTurn[playKey];
@@ -550,16 +595,14 @@
                 let winnerCard;
                 if (p1Value > p2Value) winnerCard = p1Play.card;
                 else if (p2Value > p1Value) winnerCard = p2Play.card;
-                else winnerCard = p1Play.card; // Empate mantém a carta do P1 por padrão
+                else winnerCard = p1Play.card;
                 
                 gs.board[gs.currentRow][col] = { card: winnerCard };
                 if (gs.gameMode === 'online') await updateFirestoreState(gs); else { localGameState = gs; updateUI(); }
                 await delay(1500);
             }
 
-            // Após revelar a linha, decide o que fazer
             if (gs.currentRow >= 2) {
-                // Fim do turno, calcular pontos
                 gs = applySpecialRules(gs);
                 gs = calculateScores(gs);
                 
@@ -575,7 +618,6 @@
                     gs.statusMessage = `Turno ${gs.turn} finalizado! Clique em "Próximo Turno".`;
                 }
             } else {
-                // Prepara para a próxima linha
                 gs.currentRow++;
                 gs.spacesPlayedInRow = 0;
                 gs.confirmations = { player1: false, player2: false };
@@ -590,7 +632,6 @@
 
         function applySpecialRules(gs) {
             let board = gs.board;
-            // Regra de Anulação: Sofás (Horizontal)
             for(let r=0; r<3; r++){
                 for(let c=0; c<2; c++){
                     const cell1 = board[r][c]?.card;
@@ -600,7 +641,6 @@
                     }
                 }
             }
-             // Regra de Anulação: Estantes (Vertical)
             for(let c=0; c<3; c++){
                 for(let r=0; r<2; r++){
                     const cell1 = board[r][c]?.card;
@@ -619,7 +659,6 @@
             let p2TurnPoints = 0;
             const board = gs.board;
 
-            // 1. Pontuação Básica: Mais mobílias
             let p1Cards = 0, p2Cards = 0;
             for(let r=0; r<3; r++) for(let c=0; c<3; c++) {
                 if(board[r][c]?.card?.dono === 'moderno') p1Cards++;
@@ -628,7 +667,6 @@
             if (p1Cards > p2Cards) p1TurnPoints += 5;
             if (p2Cards > p1Cards) p2TurnPoints += 5;
 
-            // 2. Bônus de Organização
             const centerCard = board[1][1]?.card;
             if(centerCard && (centerCard.tipo === 'Mesa de Centro' || centerCard.tipo === 'Tapete')) {
                 if (centerCard.dono === 'moderno') p1TurnPoints += 2; else p2TurnPoints += 2;
@@ -651,17 +689,17 @@
                 }
             });
 
-            for(let r=0; r<3; r++) { // Horizontal
+            for(let r=0; r<3; r++) {
                 const rowCards = [board[r][0]?.card, board[r][1]?.card, board[r][2]?.card];
-                if(rowCards.every(Boolean) && rowCards[0].tipo === 'Sofa' && rowCards[1].tipo === 'Mesa de Centro' && rowCards[2].tipo === 'TV') {
+                if(rowCards.every(Boolean) && new Set(rowCards.map(c=>c.tipo)).has('Sofa') && new Set(rowCards.map(c=>c.tipo)).has('Mesa de Centro') && new Set(rowCards.map(c=>c.tipo)).has('TV')) {
                     if(rowCards.every(c => c.dono === rowCards[0].dono)) {
                         if(rowCards[0].dono === 'moderno') p1TurnPoints += 3; else p2TurnPoints += 3;
                     }
                 }
             }
-             for(let c=0; c<3; c++) { // Vertical
+             for(let c=0; c<3; c++) {
                 const colCards = [board[0][c]?.card, board[1][c]?.card, board[2][c]?.card];
-                if(colCards.every(Boolean) && colCards[0].tipo === 'Sofa' && colCards[1].tipo === 'Mesa de Centro' && colCards[2].tipo === 'TV') {
+                if(colCards.every(Boolean) && new Set(colCards.map(c=>c.tipo)).has('Sofa') && new Set(colCards.map(c=>c.tipo)).has('Mesa de Centro') && new Set(colCards.map(c=>c.tipo)).has('TV')) {
                     if(colCards.every(c => c.dono === colCards[0].dono)) {
                         if(colCards[0].dono === 'moderno') p1TurnPoints += 3; else p2TurnPoints += 3;
                     }
