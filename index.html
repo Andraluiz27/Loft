@@ -756,20 +756,25 @@
             let p1TurnPoints = 0;
             let p2TurnPoints = 0;
             const board = gs.board;
+            const p1Style = gs.players.player1.style;
+            const p2Style = gs.players.player2.style;
 
+            // 1. Bônus de Maioria
             let p1Cards = 0, p2Cards = 0;
             for(let r=0; r<3; r++) for(let c=0; c<3; c++) {
-                if(board[r][c]?.card?.dono === 'moderno') p1Cards++;
-                if(board[r][c]?.card?.dono === 'extravagante') p2Cards++;
+                if(board[r][c]?.card?.dono === p1Style) p1Cards++;
+                if(board[r][c]?.card?.dono === p2Style) p2Cards++;
             }
             if (p1Cards > p2Cards) p1TurnPoints += 5;
             if (p2Cards > p1Cards) p2TurnPoints += 5;
 
+            // 2. Bônus Central
             const centerCard = board[1][1]?.card;
             if(centerCard && (centerCard.tipo === 'Mesa de Centro' || centerCard.tipo === 'Tapete')) {
-                if (centerCard.dono === 'moderno') p1TurnPoints += 2; else p2TurnPoints += 2;
+                if (centerCard.dono === p1Style) p1TurnPoints += 2; else p2TurnPoints += 2;
             }
 
+            // 3. Linha Completa (Linhas, Colunas e Diagonais)
             const lines = [
                 [[0,0],[0,1],[0,2]], [[1,0],[1,1],[1,2]], [[2,0],[2,1],[2,2]], // Rows
                 [[0,0],[1,0],[2,0]], [[0,1],[1,1],[2,1]], [[0,2],[1,2],[2,2]], // Cols
@@ -782,28 +787,51 @@
                     if(cardsInLine.every(c => c.dono === owner)) {
                         const hasEstante = cardsInLine.some(c => c.tipo === 'Estante');
                         const points = hasEstante ? 2 : 1;
-                        if(owner === 'moderno') p1TurnPoints += points; else p2TurnPoints += points;
+                        if(owner === p1Style) p1TurnPoints += points; else p2TurnPoints += points;
                     }
                 }
             });
 
-            for(let r=0; r<3; r++) {
-                const rowCards = [board[r][0]?.card, board[r][1]?.card, board[r][2]?.card];
-                if(rowCards.every(Boolean) && new Set(rowCards.map(c=>c.tipo)).has('Sofa') && new Set(rowCards.map(c=>c.tipo)).has('Mesa de Centro') && new Set(rowCards.map(c=>c.tipo)).has('TV')) {
-                    if(rowCards.every(c => c.dono === rowCards[0].dono)) {
-                        if(rowCards[0].dono === 'moderno') p1TurnPoints += 3; else p2TurnPoints += 3;
+            // 4. Sequência Especial (com ordem, apenas linhas e colunas)
+            const horizontalVerticalLines = lines.slice(0, 6);
+            const seq1 = ['Sofa', 'Mesa de Centro', 'TV'];
+            const seq2 = ['TV', 'Mesa de Centro', 'Sofa'];
+            horizontalVerticalLines.forEach(line => {
+                const cardsInLine = line.map(([r,c]) => board[r][c]?.card);
+                if (cardsInLine.every(Boolean)) {
+                    const owner = cardsInLine[0].dono;
+                    if (cardsInLine.every(c => c.dono === owner)) {
+                        const types = cardsInLine.map(c => c.tipo);
+                        if (JSON.stringify(types) === JSON.stringify(seq1) || JSON.stringify(types) === JSON.stringify(seq2)) {
+                             if(owner === p1Style) p1TurnPoints += 3; else p2TurnPoints += 3;
+                        }
                     }
                 }
-            }
-             for(let c=0; c<3; c++) {
-                const colCards = [board[0][c]?.card, board[1][c]?.card, board[2][c]?.card];
-                if(colCards.every(Boolean) && new Set(colCards.map(c=>c.tipo)).has('Sofa') && new Set(colCards.map(c=>c.tipo)).has('Mesa de Centro') && new Set(colCards.map(c=>c.tipo)).has('TV')) {
-                    if(colCards.every(c => c.dono === colCards[0].dono)) {
-                        if(colCards[0].dono === 'moderno') p1TurnPoints += 3; else p2TurnPoints += 3;
-                    }
-                }
-            }
+            });
             
+            // 5. Conexões
+            const checkConnection = (type, pos1, pos2) => {
+                const card1 = board[pos1[0]][pos1[1]]?.card;
+                const card2 = board[pos2[0]][pos2[1]]?.card;
+                if (card1 && card2 && card1.tipo === type && card2.tipo === type && card1.dono === card2.dono) {
+                    if (card1.dono === p1Style) p1TurnPoints++; else p2TurnPoints++;
+                }
+            };
+
+            // Conexões nos Cantos (Quadros e Abajures)
+            ['Quadro', 'Abajur'].forEach(type => {
+                checkConnection(type, [0,0], [0,2]); // Top row
+                checkConnection(type, [2,0], [2,2]); // Bottom row
+                checkConnection(type, [0,0], [2,0]); // Left col
+                checkConnection(type, [0,2], [2,2]); // Right col
+            });
+
+            // Conexões nas Laterais (Vasos e Relógios)
+            ['Vaso de Planta', 'Relogio'].forEach(type => {
+                checkConnection(type, [1,0], [1,2]); // Middle row
+                checkConnection(type, [0,1], [2,1]); // Middle col
+            });
+
             gs.players.player1.points += p1TurnPoints;
             gs.players.player2.points += p2TurnPoints;
             gs.statusMessage = `Pontuação do turno: ${gs.players.player1.name} +${p1TurnPoints}, ${gs.players.player2.name} +${p2TurnPoints}.`;
