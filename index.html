@@ -11,7 +11,9 @@
             font-family: 'Inter', sans-serif;
             background-color: #0f172a; /* bg-slate-900 */
             color: #cbd5e1; /* text-slate-300 */
-            overflow: hidden; /* Evita barras de rolagem no lobby */
+        }
+        .no-scroll {
+            overflow: hidden;
         }
         .lobby-background {
             background-image: url('imagens/lobby-background.png');
@@ -133,11 +135,11 @@
         .is-winner { animation: winnerPulse 1.5s infinite; }
     </style>
 </head>
-<body class="p-4 md:p-6">
+<body>
 
     <!-- ===== LOBBY / TELA INICIAL ===== -->
     <div id="lobby" class="fixed inset-0 lobby-background flex items-center p-8">
-
+        <!-- Elementos gráficos flutuantes foram removidos -->
         <div class="relative z-10 w-full max-w-md">
             <div class="bg-slate-900/70 backdrop-blur-sm p-8 rounded-lg shadow-2xl">
                 <div class="text-left mb-8">
@@ -1001,15 +1003,19 @@
         // ===== LISTENERS DE UI E FIREBASE =====
         const lobbyStatusEl = document.getElementById('lobby-status');
 
+        function showGameView() {
+            lobbyEl.classList.add('hidden');
+            gameContainerEl.classList.remove('hidden');
+            document.body.classList.remove('lobby-background', 'no-scroll');
+        }
+
         document.getElementById('start-cpu-game-btn').addEventListener('click', () => {
             const playerName = document.getElementById('player-name-input').value.trim() || "Jogador";
             gameId = 'local_cpu_game';
             localPlayerId = 'player1';
             localGameState = createInitialGameState(playerName, "CPU", "cpu");
             localGameState.statusMessage = `${playerName} começa o jogo! Jogue no espaço destacado.`;
-            lobbyEl.classList.add('hidden');
-            gameContainerEl.classList.remove('hidden');
-            document.body.classList.remove('lobby-background'); // Remove o fundo do lobby
+            showGameView();
             updateUI();
         });
         
@@ -1085,11 +1091,8 @@
 
                     const player2Joined = serverState.players.player2.name !== "Aguardando...";
                     
-                    if (lobbyEl.classList.contains('flex') && player2Joined) {
-                        lobbyEl.classList.remove('flex');
-                        lobbyEl.classList.add('hidden');
-                        gameContainerEl.classList.remove('hidden');
-                        document.body.classList.remove('lobby-background');
+                    if (!gameContainerEl.classList.contains('hidden') === false && player2Joined) {
+                        showGameView();
                     }
                     
                     if (!gameContainerEl.classList.contains('hidden')) {
@@ -1131,8 +1134,8 @@
             }
         });
 
-        // Inicia com o fundo do lobby
-        document.body.classList.add('lobby-background');
+        // Configuração inicial da UI para o Lobby
+        document.body.classList.add('lobby-background', 'no-scroll');
         document.getElementById('lobby').classList.remove('max-w-lg', 'mx-auto');
         document.getElementById('lobby').classList.add('fixed', 'inset-0', 'flex', 'items-center', 'p-8');
         gameContainerEl.classList.add('hidden');
