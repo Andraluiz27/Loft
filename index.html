@@ -524,8 +524,7 @@
                         gs.statusMessage = `Vez de ${gs.players[gs.currentPlayerId].name} jogar no próximo espaço.`;
                     }
                 }
-            } else if (gs.phase === 'SELECAO_FICHAS') {
-                 if (gs.confirmations[localPlayerId] || localPlayerId !== gs.players.player1.id && localPlayerId !== gs.players.player2.id) return;
+            } else if (gs.phase === 'SELECAO_FICHAS' && !gs.confirmations[localPlayerId]) {
                  if (selectedChipValue === null) { 
                      statusMessageEl.textContent = "Selecione uma ficha primeiro!";
                      return; 
@@ -682,6 +681,7 @@
                 if (gs.gameMode === 'online') await updateFirestoreState(gs); else { localGameState = gs; updateUI(); }
             }
 
+            // A pontuação e o fim do turno só acontecem após a TERCEIRA linha
             if (gs.currentRow >= 2) {
                 gs = applySpecialRules(gs);
                 gs = calculateScores(gs);
@@ -698,6 +698,7 @@
                     gs.statusMessage = `Turno ${gs.turn} finalizado! Clique em "Próximo Turno".`;
                 }
             } else {
+                // Prepara para a próxima linha
                 gs.currentRow++;
                 gs.spacesPlayedInRow = 0;
                 gs.confirmations = { player1: false, player2: false };
