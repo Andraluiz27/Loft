@@ -241,6 +241,14 @@
         
         const delay = ms => new Promise(res => setTimeout(res, ms));
 
+        function createEmptyBoard() {
+            return {
+                '0': { '0': null, '1': null, '2': null },
+                '1': { '0': null, '1': null, '2': null },
+                '2': { '0': null, '1': null, '2': null }
+            };
+        }
+
         function criar_baralho_completo(estilo) {
             const baralho = [];
             for (const [tipo, valores] of Object.entries(VALORES_CARTAS)) {
@@ -668,7 +676,7 @@
 
         function prepareNextTurn(gs) {
             gs.turn++;
-            gs.board = Array(3).fill(null).map(() => Array(3).fill(null));
+            gs.board = createEmptyBoard();
             gs.playsThisTurn = {};
             gs.currentRow = 0;
             gs.spacesPlayedInRow = 0;
@@ -694,7 +702,7 @@
             const baralhoExtravagante = shuffle(criar_baralho_completo('extravagante'));
             return {
                 gameId, gameMode: mode, turn: 1, phase: 'SELECAO_CARTAS',
-                board: Array(3).fill(null).map(() => Array(3).fill(null)),
+                board: createEmptyBoard(),
                 players: {
                     player1: { name: player1Name, style: 'moderno', points: 0, hand: baralhoModerno.splice(0, 12), chips: { '5': 3, '7': 2 } },
                     player2: { name: player2Name, style: 'extravagante', points: 0, hand: baralhoExtravagante.splice(0, 12), chips: { '5': 3, '7': 2 } }
@@ -844,5 +852,6 @@
     </script>
 </body>
 </html>
+
 
 
