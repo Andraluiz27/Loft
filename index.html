@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LOFT - O Jogo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a; /* bg-slate-900 */
+            color: #cbd5e1; /* text-slate-300 */
+        }
+        .card {
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+            background-size: cover;
+            background-position: center;
+            border-radius: 8px;
+            border: 2px solid transparent;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        .card:hover {
+            transform: translateY(-5px) scale(1.05);
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.2);
+        }
+        .card.selected {
+            border-color: #38bdf8; /* border-sky-400 */
+            box-shadow: 0 0 20px #38bdf8;
+        }
+        .board-cell {
+            background-color: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            transition: background-color 0.3s, border 0.3s;
+            border: 2px solid transparent;
+            background-size: cover;
+            background-position: center;
+        }
+        .board-cell.highlight {
+            background-color: rgba(45, 212, 191, 0.2); /* teal-400 com opacidade */
+            border: 2px dashed #14b8a6; /* teal-500 */
+        }
+        .board-container {
+            background-image: url('imagens/sala.jpg');
+            background-size: cover;
+            background-position: center;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            border: 2px solid #334155; /* slate-700 */
+            display: inline-block; /* Faz o container se ajustar ao conteúdo */
+        }
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+        }
+        .modal-content {
+            background-color: #1e293b; /* bg-slate-800 */
+            padding: 2rem;
+            border-radius: 0.75rem;
+            border: 1px solid #334155; /* slate-700 */
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+        }
+        .chip-btn.selected {
+            background-color: #38bdf8; /* bg-sky-500 */
+            border-color: #7dd3fc; /* border-sky-300 */
+            color: white;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-6">
+
+    <!-- ===== LOBBY / TELA INICIAL ===== -->
+    <div id="lobby" class="max-w-lg mx-auto">
+        <div class="modal-content text-center">
+            <h1 class="text-5xl font-bold text-teal-400 mb-2">LOFT</h1>
+            <p class="text-slate-400 mb-8">Decore. Dispute. Domine.</p>
+            
+            <input type="text" id="player-name-input" placeholder="Digite seu nome" class="w-full bg-slate-700 border border-slate-600 focus:border-teal-500 focus:ring-teal-500 text-white p-3 rounded-md mb-4" maxlength="20">
+
+            <button id="start-cpu-game-btn" class="w-full mb-4 px-6 py-3 bg-sky-600 hover:bg-sky-500 text-white font-bold rounded-lg shadow-lg transition-transform transform hover:scale-105">Jogar contra CPU</button>
+            
+            <div class="relative py-4">
+              <div class="absolute inset-0 flex items-center">
+                <div class="w-full border-b border-slate-700"></div>
+              </div>
+              <div class="relative flex justify-center">
+                <span class="bg-slate-800 px-2 text-sm text-slate-500">OU</span>
+              </div>
+            </div>
+
+            <div id="online-options">
+                <h2 class="text-xl font-bold text-teal-300 mb-4">Jogar Online</h2>
+                <button id="create-game-btn" class="w-full mb-4 px-6 py-3 bg-teal-600 hover:bg-teal-500 text-white font-bold rounded-lg shadow-lg transition-transform transform hover:scale-105">Criar Sala</button>
+                <div id="game-id-section" class="hidden mb-4">
+                    <p class="text-slate-400">Compartilhe este ID com seu amigo:</p>
+                    <p id="game-id-display" class="bg-slate-900 text-teal-300 font-mono p-2 rounded mt-2 cursor-pointer" title="Clique para copiar"></p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <input type="text" id="join-game-input" placeholder="Cole o ID da Sala" class="w-full bg-slate-700 border border-slate-600 focus:border-teal-500 focus:ring-teal-500 text-white p-3 rounded-md">
+                    <button id="join-game-btn" class="px-6 py-3 bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-bold rounded-lg shadow-lg transition-transform transform hover:scale-105">Entrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== ÁREA PRINCIPAL DO JOGO ===== -->
+    <main id="game-container" class="hidden max-w-screen-xl mx-auto">
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+
+            <!-- Coluna Principal do Jogo (Ocupa 3/4 da tela) -->
+            <div class="lg:col-span-3 flex flex-col items-center gap-4">
+                <!-- Área do Oponente -->
+                <div id="opponent-panel" class="w-full bg-slate-800/80 backdrop-blur-sm p-3 rounded-lg border-2 border-transparent transition-all duration-300">
+                    <div class="flex justify-between items-center">
+                        <h2 id="opponent-name" class="text-xl font-bold text-fuchsia-400">Oponente (Extravagante)</h2>
+                        <p class="text-sm text-slate-400">Fichas: <span id="opponent-chips" class="font-semibold">3x[5], 2x[7]</span></p>
+                    </div>
+                </div>
+
+                <!-- Tabuleiro Principal -->
+                <div class="board-container">
+                    <div id="board" class="grid grid-cols-3 grid-rows-3 gap-4">
+                        <!-- Células do tabuleiro 3x3 serão geradas aqui -->
+                    </div>
+                </div>
+                
+                <!-- Área do Jogador -->
+                <div id="player-panel" class="w-full bg-slate-800/80 backdrop-blur-sm p-3 rounded-lg border-2 border-transparent transition-all duration-300">
+                     <div class="flex justify-between items-center mb-2">
+                        <h2 id="player-name" class="text-xl font-bold text-sky-400">Você (Moderno)</h2>
+                        <p class="text-sm text-slate-400">Fichas: <span id="player-chips" class="font-semibold">3x[5], 2x[7]</span></p>
+                    </div>
+                    <div id="player-hand" class="flex justify-center flex-wrap gap-4 min-h-[128px] items-center">
+                        <!-- Cartas do jogador serão geradas aqui -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Barra Lateral de Informações (Ocupa 1/4 da tela) -->
+            <div class="lg:col-span-1 flex flex-col gap-4">
+                <div class="bg-slate-800 p-4 rounded-lg">
+                    <h2 class="text-2xl font-bold text-teal-400 mb-2">Placar</h2>
+                    <p class="text-lg"><span id="player-score-name">Você</span>: <strong id="player-score" class="text-2xl text-sky-400">0</strong></p>
+                    <p class="text-lg"><span id="opponent-score-name">CPU</span>: <strong id="opponent-score" class="text-2xl text-fuchsia-400">0</strong></p>
+                </div>
+                
+                <div class="bg-slate-800 p-4 rounded-lg flex-grow">
+                     <h3 class="text-xl font-bold text-teal-400">Turno <span id="current-turn">1</span> / 5</h3>
+                     <p id="status-message" class="mt-2 text-teal-200 h-24">O jogo vai começar...</p>
+
+                     <!-- Painel de Ações Dinâmico -->
+                     <div id="action-panel" class="mt-4">
+                        <div id="chip-panel" class="hidden">
+                            <h3 class="font-bold mb-2 text-slate-300">Use suas Fichas</h3>
+                            <div id="chip-buttons" class="flex flex-wrap gap-2 mb-3">
+                               <!-- Botões de Ficha gerados aqui -->
+                            </div>
+                            <button id="confirm-chips-btn" class="w-full px-4 py-2 bg-sky-600 hover:bg-sky-500 rounded font-semibold">Confirmar Fichas</button>
+                        </div>
+                         <button id="next-turn-btn" class="hidden w-full px-4 py-3 bg-teal-600 hover:bg-teal-500 rounded font-bold text-lg">Próximo Turno</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <!-- Modal de Fim de Jogo -->
+    <div id="end-game-modal" class="hidden modal-overlay">
+        <div class="modal-content text-center">
+            <h2 id="winner-text" class="text-4xl font-bold text-teal-300 mb-6"></h2>
+            <button onclick="window.location.reload()" class="px-8 py-3 bg-teal-600 hover:bg-teal-500 text-white font-bold rounded-lg text-lg">Jogar Novamente</button>
+        </div>
+    </div>
+
+
+    <!-- ===== SCRIPT DO JOGO (JAVASCRIPT) ===== -->
+    <script type="module">
+        // Importações do Firebase
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, doc, getDoc, setDoc, onSnapshot, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
+        // ===== CONFIGURAÇÃO DO FIREBASE (COLE SUAS CREDENCIAIS AQUI) =====
+        const firebaseConfig = {
+            apiKey: "COLE_SUA_API_KEY_AQUI",
+            authDomain: "SEU_AUTH_DOMAIN.firebaseapp.com",
+            projectId: "SEU_PROJECT_ID",
+            storageBucket: "SEU_STORAGE_BUCKET.appspot.com",
+            messagingSenderId: "SEU_MESSAGING_SENDER_ID",
+            appId: "SUA_APP_ID"
+        };
+        // =================================================================
+
+        // Inicialização do Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+
+        // Caminho da coleção no Firestore
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'loft-game-default';
+        const gamesCollectionPath = `/artifacts/${appId}/public/data/loft_games`;
+        
+        // ===== CONSTANTES E DADOS DO JOGO =====
+        const VALORES_CARTAS = {
+            "Vaso de Planta": [1, 10, 19, 28, 37], "Quadro": [2, 11, 20, 29, 38],
+            "Relogio": [3, 12, 21, 30, 39], "Tapete": [4, 13, 22, 31, 40],
+            "Mesa de Centro": [5, 14, 23, 32, 41], "Abajur": [6, 15, 24, 33, 42],
+            "TV": [7, 16, 25, 34, 43], "Estante": [8, 17, 26, 35, 44],
+            "Sofa": [9, 18, 27, 36, 45]
+        };
+
+        // ===== VARIÁVEIS DE ESTADO GLOBAIS =====
+        let localGameState = {};
+        let localPlayerId = null; // 'player1' ou 'player2'
+        let gameId = null;
+        let unsubscribe = null; // Função para parar de ouvir o onSnapshot
+        
+        let selectedCard = null; // Carta selecionada da mão
+        let selectedChipValue = null; // Ficha selecionada
+
+        // Elementos da UI
+        const lobbyEl = document.getElementById('lobby');
+        const gameContainerEl = document.getElementById('game-container');
+        const statusMessageEl = document.getElementById('status-message');
+        const boardEl = document.getElementById('board');
+
+        // ===== FUNÇÕES DE LÓGICA DO JOGO =====
+        
+        function criar_baralho(estilo) {
+            const baralho = [];
+            for (const [tipo, valores] of Object.entries(VALORES_CARTAS)) {
+                for (const valor of valores) {
+                    const nome_formatado = tipo.toLowerCase().replace(/ /g, '_');
+                    const nome_ficheiro = `${estilo}_${nome_formatado}_${valor}.png`;
+                    const caminho_imagem = `imagens/${nome_ficheiro}`;
+                    
+                    baralho.push({ 
+                        tipo: tipo, 
+                        valor: valor, 
+                        imagem: caminho_imagem, 
+                        dono: estilo, // 'moderno' ou 'extravagante'
+                        valor_final: valor,
+                        id: `${estilo}-${tipo}-${valor}` // ID único
+                    });
+                }
+            }
+            return baralho;
+        }
+
+        function shuffle(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        async function updateFirestoreState(newState) {
+            if (gameId && localGameState.gameMode === 'online') {
+                try {
+                    await setDoc(doc(db, gamesCollectionPath, gameId), newState);
+                } catch (e) {
+                    console.error("Erro ao atualizar o Firestore: ", e);
+                    statusMessageEl.textContent = "Erro de conexão.";
+                }
+            }
+        }
+        
+        // ===== RENDERIZAÇÃO DA UI =====
+
+        function updateUI() {
+            if (!localGameState || !localGameState.players) return;
+            
+            const player = localGameState.players[localPlayerId];
+            const opponentId = localPlayerId === 'player1' ? 'player2' : 'player1';
+            const opponent = localGameState.players[opponentId];
+            
+            document.getElementById('player-name').textContent = `${player.name} (Moderno)`;
+            document.getElementById('opponent-name').textContent = `${opponent.name} (Extravagante)`;
+            document.getElementById('player-score-name').textContent = player.name;
+            document.getElementById('opponent-score-name').textContent = opponent.name;
+            document.getElementById('player-score').textContent = player.points;
+            document.getElementById('opponent-score').textContent = opponent.points;
+            document.getElementById('current-turn').textContent = localGameState.turn;
+            statusMessageEl.textContent = localGameState.statusMessage;
+            
+            const myTurn = localGameState.currentPlayerId === localPlayerId;
+            document.getElementById('player-panel').style.borderColor = myTurn ? '#38bdf8' : 'transparent';
+            document.getElementById('opponent-panel').style.borderColor = !myTurn ? '#e879f9' : 'transparent';
+            
+            const playerHandEl = document.getElementById('player-hand');
+            playerHandEl.innerHTML = '';
+            player.hand.forEach(card => {
+                const cardEl = document.createElement('div');
+                cardEl.className = 'card w-32 h-24 md:w-40 md:h-28 cursor-pointer';
+                cardEl.style.backgroundImage = `url('${card.imagem}')`;
+                if(selectedCard && selectedCard.id === card.id) {
+                    cardEl.classList.add('selected');
+                }
+                cardEl.onclick = () => handleCardClick(card);
+                playerHandEl.appendChild(cardEl);
+            });
+            
+            boardEl.innerHTML = '';
+            for (let i = 0; i < 3; i++) {
+                for (let j = 0; j < 3; j++) {
+                    const cellEl = document.createElement('div');
+                    cellEl.className = 'board-cell flex items-center justify-center text-white font-bold text-lg w-32 h-24 md:w-40 md:h-28';
+                    cellEl.dataset.row = i;
+                    cellEl.dataset.col = j;
+                    const cellState = localGameState.board[i][j];
+                    if (cellState) {
+                         if (cellState.revealed) {
+                             cellEl.style.backgroundImage = `url('${cellState.card.imagem}')`;
+                         } else {
+                             cellEl.textContent = "Ocupado";
+                             cellEl.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+                         }
+                    }
+                    if (localGameState.highlightedCell && localGameState.highlightedCell[0] === i && localGameState.highlightedCell[1] === j) {
+                        cellEl.classList.add('highlight');
+                    }
+                    cellEl.onclick = () => handleBoardCellClick(i, j);
+                    boardEl.appendChild(cellEl);
+                }
+            }
+            
+            const playerChipsEl = document.getElementById('player-chips');
+            playerChipsEl.textContent = `${player.chips[5]}x[5], ${player.chips[7]}x[7]`;
+            const opponentChipsEl = document.getElementById('opponent-chips');
+            opponentChipsEl.textContent = `${opponent.chips[5]}x[5], ${opponent.chips[7]}x[7]`;
+
+            const chipPanel = document.getElementById('chip-panel');
+            const nextTurnBtn = document.getElementById('next-turn-btn');
+
+            if (localGameState.phase === 'SELECAO_FICHAS' && myTurn) {
+                chipPanel.classList.remove('hidden');
+                const chipButtonsEl = document.getElementById('chip-buttons');
+                chipButtonsEl.innerHTML = '';
+                [...Array(player.chips[5])].forEach(() => createChipButton(5, chipButtonsEl));
+                [...Array(player.chips[7])].forEach(() => createChipButton(7, chipButtonsEl));
+
+            } else {
+                chipPanel.classList.add('hidden');
+            }
+
+            nextTurnBtn.classList.toggle('hidden', localGameState.phase !== 'FIM_TURNO' || !myTurn);
+        }
+        
+        function createChipButton(value, container) {
+            const chipBtn = document.createElement('button');
+            chipBtn.className = 'chip-btn px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-md border-2 border-slate-500 font-semibold';
+            chipBtn.textContent = value;
+            chipBtn.onclick = () => handleChipClick(value, chipBtn);
+            container.appendChild(chipBtn);
+        }
+        
+        // ===== MANIPULADORES DE EVENTOS =====
+
+        function handleCardClick(card) {
+             const gs = localGameState;
+             if (gs.currentPlayerId !== localPlayerId || gs.phase !== 'SELECAO_CARTAS') return;
+             selectedCard = (selectedCard && selectedCard.id === card.id) ? null : card;
+             updateUI();
+        }
+
+        async function handleBoardCellClick(row, col) {
+            const gs = JSON.parse(JSON.stringify(localGameState)); // Deep copy to avoid mutation issues
+            if (gs.currentPlayerId !== localPlayerId) return;
+
+            if (gs.phase === 'SELECAO_CARTAS') {
+                if (!selectedCard) { alert("Selecione uma carta da sua mão primeiro!"); return; }
+                const highlighted = gs.highlightedCell;
+                if (!highlighted || highlighted[0] !== row || highlighted[1] !== col) { alert("Você só pode jogar no espaço destacado."); return; }
+
+                const player = gs.players[localPlayerId];
+                player.hand = player.hand.filter(c => c.id !== selectedCard.id);
+                
+                let play = {
+                    player1: { card: null, chip: 0 },
+                    player2: { card: null, chip: 0 }
+                };
+                play[localPlayerId].card = selectedCard;
+
+                if (gs.gameMode === 'cpu') {
+                     const opponent = gs.players.player2;
+                     if(opponent.hand.length > 0) {
+                        const cpuCardIndex = Math.floor(Math.random() * opponent.hand.length);
+                        play.player2.card = opponent.hand.splice(cpuCardIndex, 1)[0];
+                     }
+                }
+                
+                gs.playsThisRow[`${row},${col}`] = play;
+                gs.board[row][col] = { revealed: false };
+                selectedCard = null;
+
+                gs.spacesPlayedThisRow++;
+                if (gs.spacesPlayedThisRow >= 3) {
+                    gs.phase = 'SELECAO_FICHAS';
+                    gs.highlightedCell = null;
+                    gs.statusMessage = "Fase de Fichas! Adicione fichas se desejar.";
+                } else {
+                    const nextCol = col + 1;
+                    gs.highlightedCell = [row, nextCol];
+                }
+                
+                if (gs.gameMode === 'cpu') {
+                    localGameState = gs;
+                    updateUI();
+                } else {
+                    await updateFirestoreState(gs);
+                }
+            }
+
+            if (gs.phase === 'SELECAO_FICHAS') {
+                 if (selectedChipValue === null) { alert("Selecione uma ficha primeiro!"); return; }
+                 const play = gs.playsThisRow[`${row},${col}`];
+                 if (!play || play[localPlayerId].chip > 0) return;
+                 
+                 const player = gs.players[localPlayerId];
+                 if (player.chips[selectedChipValue] > 0) {
+                     player.chips[selectedChipValue]--;
+                     play[localPlayerId].chip = selectedChipValue;
+                     selectedChipValue = null;
+                     
+                     if (gs.gameMode === 'cpu') {
+                        localGameState = gs;
+                        updateUI();
+                     } else {
+                        await updateFirestoreState(gs);
+                     }
+                 } else { alert(`Você não tem mais fichas de valor ${selectedChipValue}.`); }
+            }
+        }
+        
+        function handleChipClick(value, buttonEl) {
+             selectedChipValue = value;
+             document.querySelectorAll('.chip-btn').forEach(btn => btn.classList.remove('selected'));
+             buttonEl.classList.add('selected');
+        }
+        
+        document.getElementById('confirm-chips-btn').addEventListener('click', async () => {
+             const gs = JSON.parse(JSON.stringify(localGameState));
+             gs.phase = 'REVELACAO';
+             gs.statusMessage = "Revelando os resultados...";
+
+             if (gs.gameMode === 'cpu') {
+                const cpu = gs.players.player2;
+                Object.values(gs.playsThisRow).forEach(play => {
+                    const card = play.player2.card;
+                    if (card.valor > 30 && cpu.chips[7] > 0) { play.player2.chip = 7; cpu.chips[7]--; }
+                    else if (card.valor > 15 && cpu.chips[5] > 0) { play.player2.chip = 5; cpu.chips[5]--; }
+                });
+                localGameState = gs;
+                updateUI();
+                setTimeout(() => revealRow(gs.currentRow), 1000);
+             } else {
+                await updateFirestoreState(gs);
+             }
+        });
+
+        function revealRow(rowIndex) {
+            let colIndex = 0;
+            const revealInterval = setInterval(async () => {
+                if(colIndex >= 3) {
+                    clearInterval(revealInterval);
+                    // TODO: Finalizar a linha e avançar
+                    return;
+                }
+                
+                const gs = JSON.parse(JSON.stringify(localGameState));
+                const play = gs.playsThisRow[`${rowIndex},${colIndex}`];
+                if(play) {
+                    const p1Card = play.player1.card;
+                    const p2Card = play.player2.card;
+                    p1Card.valor_final = p1Card.valor + play.player1.chip;
+                    p2Card.valor_final = p2Card.valor + play.player2.chip;
+
+                    let winnerCard;
+                    if(p1Card.valor_final > p2Card.valor_final) winnerCard = p1Card;
+                    else if (p2Card.valor_final > p1Card.valor_final) winnerCard = p2Card;
+                    else winnerCard = { tipo: 'Empate', imagem: '' }; // Empate
+                    
+                    gs.board[rowIndex][colIndex] = { revealed: true, card: winnerCard };
+                    
+                    if (gs.gameMode === 'cpu') {
+                        localGameState = gs;
+                        updateUI();
+                    } else {
+                        await updateFirestoreState(gs);
+                    }
+                }
+                colIndex++;
+            }, 2500);
+        }
+
+        // ===== INICIALIZAÇÃO DO JOGO =====
+        
+        function createInitialGameState(player1Name, player2Name, mode) {
+            const baralhoModerno = shuffle(criar_baralho('moderno'));
+            const baralhoExtravagante = shuffle(criar_baralho('extravagante'));
+            return {
+                gameId, gameMode: mode, turn: 1, phase: 'SELECAO_CARTAS',
+                statusMessage: `${player1Name} começa o jogo! Jogue no espaço destacado.`,
+                board: Array(3).fill(null).map(() => Array(3).fill(null)),
+                players: {
+                    player1: { name: player1Name, style: 'moderno', points: 0, hand: baralhoModerno.splice(0, 12), chips: { '5': 3, '7': 2 } },
+                    player2: { name: player2Name, style: 'extravagante', points: 0, hand: baralhoExtravagante.splice(0, 12), chips: { '5': 3, '7': 2 } }
+                },
+                currentPlayerId: 'player1', highlightedCell: [0, 0], currentRow: 0,
+                spacesPlayedThisRow: 0, playsThisRow: {},
+            };
+        }
+        
+        document.getElementById('start-cpu-game-btn').addEventListener('click', () => {
+            const playerName = document.getElementById('player-name-input').value.trim() || "Jogador";
+            gameId = 'local_cpu_game';
+            localPlayerId = 'player1';
+            localGameState = createInitialGameState(playerName, "CPU", "cpu");
+            lobbyEl.classList.add('hidden');
+            gameContainerEl.classList.remove('hidden');
+            updateUI();
+        });
+        
+        document.getElementById('create-game-btn').addEventListener('click', async () => {
+             const playerName = document.getElementById('player-name-input').value.trim();
+             if (!playerName) { alert("Por favor, digite seu nome."); return; }
+             const newGameId = Math.random().toString(36).substring(2, 6).toUpperCase();
+             gameId = newGameId;
+             localPlayerId = 'player1';
+             const initialState = createInitialGameState(playerName, "Aguardando...", "online");
+             await setDoc(doc(db, gamesCollectionPath, gameId), initialState);
+             document.getElementById('game-id-display').textContent = gameId;
+             document.getElementById('game-id-section').classList.remove('hidden');
+             listenToGameChanges(gameId);
+        });
+
+        document.getElementById('join-game-btn').addEventListener('click', async () => {
+            const joinId = document.getElementById('join-game-input').value.trim().toUpperCase();
+            const playerName = document.getElementById('player-name-input').value.trim();
+            if (!joinId || !playerName) { alert("Preencha o ID da sala e seu nome."); return; }
+            const gameRef = doc(db, gamesCollectionPath, joinId);
+            const gameSnap = await getDoc(gameRef);
+            if (gameSnap.exists() && gameSnap.data().players.player2.name === "Aguardando...") {
+                gameId = joinId;
+                localPlayerId = 'player2';
+                let gameData = gameSnap.data();
+                gameData.players.player2.name = playerName;
+                await setDoc(gameRef, gameData);
+                listenToGameChanges(gameId);
+            } else { alert("Sala não encontrada ou já está cheia!"); }
+        });
+        
+        function listenToGameChanges(id) {
+            unsubscribe = onSnapshot(doc(db, gamesCollectionPath, id), (doc) => {
+                if (doc.exists()) {
+                    const serverState = doc.data();
+                    localGameState = serverState;
+                    if(!gameContainerEl.classList.contains('hidden')) {
+                        updateUI();
+                    } else {
+                        lobbyEl.classList.add('hidden');
+                        gameContainerEl.classList.remove('hidden');
+                        updateUI();
+                    }
+                } else { 
+                    alert("A sala foi fechada pelo anfitrião.");
+                    window.location.reload();
+                }
+            });
+        }
+        
+        onAuthStateChanged(auth, (user) => {
+            if (!user) { signInAnonymously(auth).catch(console.error); }
+        });
+
+        window.addEventListener('beforeunload', () => {
+            if(localGameState.gameMode === 'online' && localPlayerId === 'player1' && gameId) {
+                deleteDoc(doc(db, gamesCollectionPath, gameId));
+            }
+        });
+        
+    </script>
+</body>
+</html>
+
