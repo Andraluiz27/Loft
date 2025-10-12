@@ -223,7 +223,7 @@
     <div id="clash-modal" class="hidden modal-overlay backdrop-blur-sm">
         <div class="w-full max-w-4xl flex justify-around items-center gap-4 p-4">
             <!-- Carta do Jogador 1 -->
-            <div id="clash-p1-container" class="clash-card-container flex flex-col items-center gap-2" style="animation: slideInFromLeft 0.5s forwards;">
+            <div id="clash-p1-container" class="clash-card-container flex flex-col items-center gap-2">
                 <h3 id="clash-p1-name" class="text-2xl font-bold text-sky-400"></h3>
                 <div id="clash-p1-card" class="w-48 h-32 md:w-64 md:h-48 rounded-lg" style="background-size: cover; background-position: center;"></div>
                 <div class="text-center">
@@ -232,10 +232,10 @@
                 </div>
             </div>
             
-            <p class="text-5xl font-black text-slate-400" style="animation: fadeIn 1s 0.5s forwards; opacity:0;">VS</p>
+            <p id="vs-text" class="text-5xl font-black text-slate-400">VS</p>
 
             <!-- Carta do Jogador 2 -->
-            <div id="clash-p2-container" class="clash-card-container flex flex-col items-center gap-2" style="animation: slideInFromRight 0.5s forwards;">
+            <div id="clash-p2-container" class="clash-card-container flex flex-col items-center gap-2">
                 <h3 id="clash-p2-name" class="text-2xl font-bold text-fuchsia-400"></h3>
                 <div id="clash-p2-card" class="w-48 h-32 md:w-64 md:h-48 rounded-lg" style="background-size: cover; background-position: center;"></div>
                 <div class="text-center">
@@ -464,6 +464,16 @@
                 document.getElementById('final-score-player').textContent = `${player.name}: ${player.points}`;
                 document.getElementById('final-score-opponent').textContent = `${opponent.name}: ${opponent.points}`;
             }
+
+            // LÓGICA DE EXIBIÇÃO DO EMBATE
+            if (localGameState.phase === 'REVELACAO_EMBATE' && localGameState.clashColumn !== null) {
+                const play = localGameState.playsThisTurn[`${localGameState.currentRow},${localGameState.clashColumn}`];
+                if (play) {
+                    showClashAnimation(play.player1, play.player2, localGameState.players.player1.name, localGameState.players.player2.name);
+                }
+            } else {
+                clashModalEl.classList.add('hidden');
+            }
         }
         
         function createChipButton(value, container) {
@@ -589,7 +599,7 @@
                 gs.confirmations.player2 = true;
                 localGameState = gs;
                 updateUI();
-                await startRowResolution();
+                startRowResolution(); // Não precisa de await no modo CPU
              } else { 
                 await updateFirestoreState(gs);
              }
@@ -611,23 +621,28 @@
 
         // ===== LÓGICA DE TURNO E PONTUAÇÃO =====
 
-        async function showClashAnimation(p1Play, p2Play, p1Name, p2Name) {
+        function showClashAnimation(p1Play, p2Play, p1Name, p2Name) {
             const p1c = document.getElementById('clash-p1-container');
             const p2c = document.getElementById('clash-p2-container');
+            const vsText = document.getElementById('vs-text');
 
-            // Resetar animações e classes
-            [p1c, p2c].forEach(el => {
-                el.classList.remove('is-winner', 'is-loser');
+            [p1c, p2c, vsText].forEach(el => {
                 el.style.animation = 'none';
-                void el.offsetWidth; // Trigger reflow
+                void el.offsetWidth;
             });
+
+            p1c.classList.remove('is-winner', 'is-loser');
+            p2c.classList.remove('is-winner', 'is-loser');
+            
             p1c.style.animation = 'slideInFromLeft 0.5s forwards';
             p2c.style.animation = 'slideInFromRight 0.5s forwards';
+            vsText.style.animation = 'fadeIn 1s 0.5s forwards';
+            vsText.style.opacity = 0;
+
 
             const p1Value = p1Play.card.valor + p1Play.chip;
             const p2Value = p2Play.card.valor + p2Play.chip;
 
-            // Preencher dados
             document.getElementById('clash-p1-name').textContent = p1Name;
             document.getElementById('clash-p1-card').style.backgroundImage = `url('${p1Play.card.imagem}')`;
             document.getElementById('clash-p1-card-value').textContent = p1Play.card.valor;
@@ -641,19 +656,16 @@
             document.getElementById('clash-p2-total').textContent = p2Value;
             
             clashModalEl.classList.remove('hidden');
-            await delay(1500); // Pausa para ver as cartas
 
-            // Animar vencedor/perdedor
-            if (p1Value > p2Value) {
-                p1c.classList.add('is-winner');
-                p2c.classList.add('is-loser');
-            } else if (p2Value > p1Value) {
-                p2c.classList.add('is-winner');
-                p1c.classList.add('is-loser');
-            }
-            
-            await delay(2500); // Pausa para ver o resultado
-            clashModalEl.classList.add('hidden');
+            setTimeout(() => {
+                if (p1Value > p2Value) {
+                    p1c.classList.add('is-winner');
+                    p2c.classList.add('is-loser');
+                } else if (p2Value > p1Value) {
+                    p2c.classList.add('is-winner');
+                    p1c.classList.add('is-loser');
+                }
+            }, 1500);
         }
 
         async function startRowResolution() {
@@ -667,21 +679,27 @@
                 const play = gs.playsThisTurn[playKey];
                 if (!play || !play.player1 || !play.player2) continue;
 
-                await showClashAnimation(play.player1, play.player2, gs.players.player1.name, gs.players.player2.name);
+                // 1. Inicia o estado de embate para a coluna atual
+                gs.phase = 'REVELACAO_EMBATE';
+                gs.clashColumn = col;
+                if (gs.gameMode === 'online') await updateFirestoreState(gs);
+                else { localGameState = gs; updateUI(); } // No modo CPU, força a atualização da UI
 
+                await delay(4000); // Duração da animação + resultado
+
+                // 2. Calcula o vencedor e atualiza o tabuleiro
                 const p1Value = play.player1.card.valor + play.player1.chip;
                 const p2Value = play.player2.card.valor + play.player2.chip;
-                
-                let winnerCard;
-                if (p1Value > p2Value) winnerCard = play.player1.card;
-                else if (p2Value > p1Value) winnerCard = play.player2.card;
-                else winnerCard = play.player1.card;
+                let winnerCard = (p1Value >= p2Value) ? play.player1.card : play.player2.card;
                 
                 gs.board[gs.currentRow][col] = { card: winnerCard };
-                if (gs.gameMode === 'online') await updateFirestoreState(gs); else { localGameState = gs; updateUI(); }
+                gs.phase = 'REVELACAO'; // Volta para a fase geral de revelação
+                gs.clashColumn = null;
+                if (gs.gameMode === 'online') await updateFirestoreState(gs);
+                else { localGameState = gs; updateUI(); }
+                await delay(500); // Pequena pausa antes do próximo embate
             }
 
-            // A pontuação e o fim do turno só acontecem após a TERCEIRA linha
             if (gs.currentRow >= 2) {
                 gs = applySpecialRules(gs);
                 gs = calculateScores(gs);
@@ -698,7 +716,6 @@
                     gs.statusMessage = `Turno ${gs.turn} finalizado! Clique em "Próximo Turno".`;
                 }
             } else {
-                // Prepara para a próxima linha
                 gs.currentRow++;
                 gs.spacesPlayedInRow = 0;
                 gs.confirmations = { player1: false, player2: false };
@@ -835,6 +852,7 @@
                 currentPlayerId: 'player1', highlightedCell: [0, 0], currentRow: 0,
                 spacesPlayedInRow: 0, playsThisTurn: {},
                 confirmations: { player1: false, player2: false },
+                clashColumn: null, // Novo estado para controlar a animação
                 statusMessage: `Aguardando oponente...`,
             };
         }
@@ -934,6 +952,7 @@
                     const serverState = doc.data();
                     const wasConfirmationPhase = localGameState.phase === 'SELECAO_FICHAS';
                     localGameState = serverState;
+
                     const player2Joined = serverState.players.player2.name !== "Aguardando...";
                     
                     if (lobbyEl.className.indexOf('hidden') === -1 && player2Joined) {
@@ -947,7 +966,7 @@
 
                     const bothConfirmed = serverState.confirmations.player1 && serverState.confirmations.player2;
                     if(wasConfirmationPhase && bothConfirmed && localPlayerId === 'player1') {
-                         await startRowResolution();
+                         startRowResolution(); // Não precisa de await aqui
                     }
 
                 } else { 
