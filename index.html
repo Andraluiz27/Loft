@@ -203,9 +203,8 @@
         const db = getFirestore(app);
         const auth = getAuth(app);
 
-        // Caminho da coleção no Firestore
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'loft-game-default';
-        const gamesCollectionPath = `/artifacts/${appId}/public/data/loft_games`;
+        // CORREÇÃO: Caminho do banco de dados fixo para todos os jogadores
+        const gamesCollectionPath = `public_games/loft`;
         
         // ===== CONSTANTES E DADOS DO JOGO =====
         const VALORES_CARTAS = {
@@ -429,11 +428,9 @@
                  if (gs.confirmations[localPlayerId]) return;
                  if (selectedChipValue === null) { alert("Selecione uma ficha primeiro!"); return; }
                  
-                 // Permite colocar ficha apenas na linha atual
                  if (row !== gs.currentRow) { alert("Só pode colocar fichas na linha atual."); return;}
 
                  const play = gs.playsThisRow[`${row},${col}`];
-                 // Verifica se o jogador está tentando por a ficha na sua própria carta e se já não tem uma
                  if (!play || !play[localPlayerId].card || play[localPlayerId].chip > 0) return;
                  
                  const player = gs.players[localPlayerId];
@@ -460,13 +457,11 @@
              
              gs.confirmations[localPlayerId] = true;
 
-             if (gs.confirmations.player1 && gs.confirmations.player2) {
+             const bothConfirmed = gs.confirmations.player1 && gs.confirmations.player2;
+
+             if (bothConfirmed) {
                 gs.phase = 'REVELACAO';
                 gs.statusMessage = "Ambos confirmaram! Revelando resultados...";
-                
-                // A revelação começa após um pequeno delay
-                setTimeout(() => revealRow(gs.currentRow), 1500);
-
              } else {
                 gs.statusMessage = "Você confirmou. Aguardando oponente...";
              }
@@ -480,7 +475,12 @@
                 }
                 updateUI();
              } 
-             else { await updateFirestoreState(gs); }
+             else { 
+                await updateFirestoreState(gs);
+                if (bothConfirmed) {
+                    setTimeout(() => revealRow(gs.currentRow), 1500);
+                }
+             }
         });
 
         function revealRow(rowIndex) {
@@ -534,7 +534,7 @@
                 },
                 currentPlayerId: 'player1', highlightedCell: [0, 0], currentRow: 0,
                 spacesPlayedThisRow: 0, playsThisRow: {},
-                confirmations: { player1: false, player2: false } // << NOVO CAMPO
+                confirmations: { player1: false, player2: false }
             };
         }
         
@@ -596,7 +596,7 @@
                     localGameState = serverState;
                     const player2Joined = serverState.players.player2.name !== "Aguardando...";
                     
-                    if (lobbyEl.className.indexOf('hidden') !== -1 && player2Joined) {
+                    if (lobbyEl.className.indexOf('hidden') === -1 && player2Joined) {
                         lobbyEl.classList.add('hidden');
                         gameContainerEl.classList.remove('hidden');
                     }
