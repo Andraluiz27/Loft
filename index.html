@@ -11,6 +11,12 @@
             font-family: 'Inter', sans-serif;
             background-color: #0f172a; /* bg-slate-900 */
             color: #cbd5e1; /* text-slate-300 */
+            overflow: hidden; /* Evita barras de rolagem no lobby */
+        }
+        .lobby-background {
+            background-image: url('imagens/lobby-background.png');
+            background-size: cover;
+            background-position: center;
         }
         .card {
             transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
@@ -117,42 +123,52 @@
 <body class="p-4 md:p-6">
 
     <!-- ===== LOBBY / TELA INICIAL ===== -->
-    <div id="lobby" class="max-w-lg mx-auto">
-        <div class="modal-content text-center">
-            <h1 class="text-5xl font-bold text-teal-400 mb-2">LOFT</h1>
-            <p class="text-slate-400 mb-8">Decore. Dispute. Domine.</p>
-            
-            <input type="text" id="player-name-input" placeholder="Digite seu nome" class="w-full bg-slate-700 border border-slate-600 focus:border-teal-500 focus:ring-teal-500 text-white p-3 rounded-md mb-4" maxlength="20">
+    <div id="lobby" class="fixed inset-0 lobby-background flex items-center p-8">
+        <!-- Elementos gráficos flutuantes -->
+        <img src="imagens/sofa.png" class="absolute w-1/3 max-w-sm bottom-10 right-1/4 opacity-80" alt="Sofá decorativo">
+        <img src="imagens/planta.png" class="absolute w-24 md:w-32 top-1/2 right-1/2 opacity-80" alt="Planta decorativa">
+        <img src="imagens/quadro.png" class="absolute w-24 md:w-32 top-10 right-1/4 opacity-80" alt="Quadro decorativo">
+        <img src="imagens/relogio.png" class="absolute w-20 md:w-24 top-16 right-1/2 opacity-80" alt="Relógio decorativo">
 
-            <button id="start-cpu-game-btn" class="w-full mb-4 px-6 py-3 bg-sky-600 hover:bg-sky-500 text-white font-bold rounded-lg shadow-lg transition-transform transform hover:scale-105">Jogar contra CPU</button>
-            
-            <div class="relative py-4">
-              <div class="absolute inset-0 flex items-center">
-                <div class="w-full border-b border-slate-700"></div>
-              </div>
-              <div class="relative flex justify-center">
-                <span class="bg-slate-800 px-2 text-sm text-slate-500">OU</span>
-              </div>
-            </div>
+        <div class="relative z-10 w-full max-w-md">
+            <div class="bg-slate-900/70 backdrop-blur-sm p-8 rounded-lg shadow-2xl">
+                <div class="text-left mb-8">
+                    <h1 class="text-6xl font-bold text-teal-400">LOFT</h1>
+                    <p class="text-slate-400">Decore. Dispute. Domine.</p>
+                </div>
+                
+                <input type="text" id="player-name-input" placeholder="Digite seu nome" class="w-full bg-slate-700 border border-slate-600 focus:border-teal-500 focus:ring-teal-500 text-white p-3 rounded-md mb-4" maxlength="20">
 
-            <div id="online-options">
-                <h2 class="text-xl font-bold text-teal-300 mb-4">Jogar Online</h2>
-                <button id="create-game-btn" class="w-full mb-4 px-6 py-3 bg-teal-600 hover:bg-teal-500 text-white font-bold rounded-lg shadow-lg transition-transform transform hover:scale-105">Criar Sala</button>
-                <div id="game-id-section" class="hidden mb-4">
-                    <p class="text-slate-400">Compartilhe este ID com seu amigo:</p>
-                    <p id="game-id-display" class="bg-slate-900 text-teal-300 font-mono p-2 rounded mt-2 cursor-pointer" title="Clique para copiar"></p>
+                <button id="start-cpu-game-btn" class="w-full mb-4 px-6 py-3 bg-sky-600 hover:bg-sky-500 text-white font-bold rounded-lg shadow-lg transition-transform transform hover:scale-105">Jogar contra CPU</button>
+                
+                <div class="relative py-4">
+                  <div class="absolute inset-0 flex items-center">
+                    <div class="w-full border-b border-slate-700"></div>
+                  </div>
+                  <div class="relative flex justify-center">
+                    <span class="bg-slate-800/50 px-2 text-sm text-slate-500">OU</span>
+                  </div>
                 </div>
-                <div class="flex items-center gap-2">
-                    <input type="text" id="join-game-input" placeholder="Cole o ID da Sala" class="w-full bg-slate-700 border border-slate-600 focus:border-teal-500 focus:ring-teal-500 text-white p-3 rounded-md">
-                    <button id="join-game-btn" class="px-6 py-3 bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-bold rounded-lg shadow-lg transition-transform transform hover:scale-105">Entrar</button>
+
+                <div id="online-options">
+                    <h2 class="text-xl font-bold text-teal-300 mb-4 text-left">Jogar Online</h2>
+                    <button id="create-game-btn" class="w-full mb-4 px-6 py-3 bg-teal-600 hover:bg-teal-500 text-white font-bold rounded-lg shadow-lg transition-transform transform hover:scale-105">Criar Sala</button>
+                    <div id="game-id-section" class="hidden mb-4">
+                        <p class="text-slate-400">Compartilhe este ID com seu amigo:</p>
+                        <p id="game-id-display" class="bg-slate-900 text-teal-300 font-mono p-2 rounded mt-2 cursor-pointer" title="Clique para copiar"></p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <input type="text" id="join-game-input" placeholder="Cole o ID da Sala" class="w-full bg-slate-700 border border-slate-600 focus:border-teal-500 focus:ring-teal-500 text-white p-3 rounded-md">
+                        <button id="join-game-btn" class="px-6 py-3 bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-bold rounded-lg shadow-lg transition-transform transform hover:scale-105">Entrar</button>
+                    </div>
+                    <p id="lobby-status" class="text-amber-400 h-8 mt-2 text-left"></p>
                 </div>
-                <p id="lobby-status" class="text-amber-400 h-8 mt-2"></p>
             </div>
         </div>
     </div>
 
     <!-- ===== ÁREA PRINCIPAL DO JOGO ===== -->
-    <main id="game-container" class="hidden max-w-screen-xl mx-auto">
+    <main id="game-container" class="hidden max-w-screen-xl mx-auto p-4 md:p-6">
         <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
 
             <!-- Coluna Principal do Jogo (Ocupa 3/4 da tela) -->
@@ -366,9 +382,6 @@
             const player = localGameState.players[localPlayerId];
             const opponentId = localPlayerId === 'player1' ? 'player2' : 'player1';
             const opponent = localGameState.players[opponentId];
-            
-            document.getElementById('player-name').textContent = `${player.name} (Moderno)`;
-            document.getElementById('opponent-name').textContent = `${opponent.name} (Extravagante)`;
             
             // ATUALIZAÇÃO DA PONTUAÇÃO
             const scoreDisplay = document.getElementById('score-display');
@@ -717,6 +730,7 @@
             setTimeout(() => {
                 if (p1Value > p2Value) { p1c.classList.add('is-winner'); p2c.classList.add('is-loser'); }
                 else if (p2Value > p1Value) { p2c.classList.add('is-winner'); p1c.classList.add('is-loser'); }
+                else { p1c.classList.add('is-loser'); p2c.classList.add('is-loser'); } // EMPATE
             }, 1500);
         }
 
@@ -739,16 +753,21 @@
 
                 const p1Value = play.player1.card.valor + play.player1.chip;
                 const p2Value = play.player2.card.valor + play.player2.chip;
-                let winnerCard = (p1Value >= p2Value) ? play.player1.card : play.player2.card;
+                let winnerCard = null;
                 let isAnnulled = false;
-                
-                if (winnerCard.tipo === 'Sofa' && col > 0) {
-                    const adjacentCell = gs.board[gs.currentRow][col - 1];
-                    if (adjacentCell?.card?.tipo === 'Sofa' && adjacentCell.card.dono !== winnerCard.dono) { isAnnulled = true; }
-                }
-                if (winnerCard.tipo === 'Estante' && gs.currentRow > 0) {
-                    const adjacentCell = gs.board[gs.currentRow - 1][col];
-                    if (adjacentCell?.card?.tipo === 'Estante' && adjacentCell.card.dono !== winnerCard.dono) { isAnnulled = true; }
+
+                if (p1Value === p2Value) {
+                    isAnnulled = true;
+                } else {
+                    winnerCard = (p1Value > p2Value) ? play.player1.card : play.player2.card;
+                    if (winnerCard.tipo === 'Sofa' && col > 0) {
+                        const adjacentCell = gs.board[gs.currentRow][col - 1];
+                        if (adjacentCell?.card?.tipo === 'Sofa' && adjacentCell.card.dono !== winnerCard.dono) { isAnnulled = true; }
+                    }
+                    if (!isAnnulled && winnerCard.tipo === 'Estante' && gs.currentRow > 0) {
+                        const adjacentCell = gs.board[gs.currentRow - 1][col];
+                        if (adjacentCell?.card?.tipo === 'Estante' && adjacentCell.card.dono !== winnerCard.dono) { isAnnulled = true; }
+                    }
                 }
 
                 if (isAnnulled) { gs.board[gs.currentRow][col] = { card: null, annulled: true }; }
@@ -903,6 +922,8 @@
             gs.clashColumn = null;
             gs.clockPowerPlayer = null;
             gs.swapSelection = [];
+            gs.players.player1.lastTurnPoints = 0;
+            gs.players.player2.lastTurnPoints = 0;
 
             for(let i=0; i<9; i++) {
                 if(gs.decks.moderno.length > 0) gs.players.player1.hand.push(gs.decks.moderno.pop());
@@ -965,6 +986,7 @@
             localGameState.statusMessage = `${playerName} começa o jogo! Jogue no espaço destacado.`;
             lobbyEl.classList.add('hidden');
             gameContainerEl.classList.remove('hidden');
+            document.body.classList.remove('lobby-background'); // Remove o fundo do lobby
             updateUI();
         });
         
@@ -1040,12 +1062,14 @@
 
                     const player2Joined = serverState.players.player2.name !== "Aguardando...";
                     
-                    if (lobbyEl.className.indexOf('hidden') === -1 && player2Joined) {
+                    if (lobbyEl.classList.contains('flex') && player2Joined) {
+                        lobbyEl.classList.remove('flex');
                         lobbyEl.classList.add('hidden');
                         gameContainerEl.classList.remove('hidden');
+                        document.body.classList.remove('lobby-background');
                     }
                     
-                    if (gameContainerEl.className.indexOf('hidden') === -1) {
+                    if (!gameContainerEl.classList.contains('hidden')) {
                         updateUI();
                     }
 
@@ -1083,7 +1107,13 @@
                 deleteDoc(doc(db, gamesCollectionPath, gameId));
             }
         });
-        
+
+        // Inicia com o fundo do lobby
+        document.body.classList.add('lobby-background');
+        document.getElementById('lobby').classList.remove('max-w-lg', 'mx-auto');
+        document.getElementById('lobby').classList.add('fixed', 'inset-0', 'flex', 'items-center', 'p-8');
+        gameContainerEl.classList.add('hidden');
+
     </script>
 </body>
 </html>
