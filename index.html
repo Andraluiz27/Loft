@@ -31,7 +31,7 @@
         .board-cell {
             background-color: rgba(255, 255, 255, 0.05);
             border-radius: 8px;
-            transition: background-color 0.3s, border 0.3s;
+            transition: background-color 0.3s, border 0.3s, transform 0.5s;
             border: 2px solid transparent;
             background-size: cover;
             background-position: center;
@@ -41,7 +41,7 @@
             border: 2px dashed #14b8a6; /* teal-500 */
         }
         .board-container {
-            background-image: url('imagens/sala.jpg');
+            background-image: url('https://placehold.co/600x400/1e293b/475569?text=LOFT'); /* Imagem de fundo da sala */
             background-size: cover;
             background-position: center;
             padding: 1rem;
@@ -176,6 +176,9 @@
     <div id="end-game-modal" class="hidden modal-overlay">
         <div class="modal-content text-center">
             <h2 id="winner-text" class="text-4xl font-bold text-teal-300 mb-6"></h2>
+            <p class="text-slate-400 mb-2">Placar Final</p>
+            <p id="final-score-player" class="text-xl mb-1"></p>
+            <p id="final-score-opponent" class="text-xl mb-6"></p>
             <button onclick="window.location.reload()" class="px-8 py-3 bg-teal-600 hover:bg-teal-500 text-white font-bold rounded-lg text-lg">Jogar Novamente</button>
         </div>
     </div>
@@ -185,9 +188,10 @@
     <script type="module">
         // Importações do Firebase
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getFirestore, doc, getDoc, setDoc, onSnapshot, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, setDoc, onSnapshot, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
+        // Cole aqui sua configuração do Firebase
         const firebaseConfig = {
           apiKey: "AIzaSyCud1NHoejuyxPaONKjZG9U5k2GxMXUFPQ",
           authDomain: "loft-86abf.firebaseapp.com",
@@ -203,7 +207,6 @@
         const db = getFirestore(app);
         const auth = getAuth(app);
 
-        // CORREÇÃO: Caminho robusto do banco de dados, igual para todos os jogadores
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'loft-game-default';
         const gamesCollectionPath = `/artifacts/${appId}/public/data/loft_games`;
         
@@ -215,6 +218,7 @@
             "TV": [7, 16, 25, 34, 43], "Estante": [8, 17, 26, 35, 44],
             "Sofa": [9, 18, 27, 36, 45]
         };
+        const TOTAL_TURNOS = 5;
 
         // ===== VARIÁVEIS DE ESTADO GLOBAIS =====
         let localGameState = {};
@@ -230,24 +234,26 @@
         const gameContainerEl = document.getElementById('game-container');
         const statusMessageEl = document.getElementById('status-message');
         const boardEl = document.getElementById('board');
+        const endGameModalEl = document.getElementById('end-game-modal');
 
         // ===== FUNÇÕES DE LÓGICA DO JOGO =====
         
-        function criar_baralho(estilo) {
+        const delay = ms => new Promise(res => setTimeout(res, ms));
+
+        function criar_baralho_completo(estilo) {
             const baralho = [];
             for (const [tipo, valores] of Object.entries(VALORES_CARTAS)) {
                 for (const valor of valores) {
                     const nome_formatado = tipo.toLowerCase().replace(/ /g, '_');
-                    const nome_ficheiro = `${estilo}_${nome_formatado}_${valor}.png`;
-                    const caminho_imagem = `imagens/${nome_ficheiro}`;
+                    // Usando um placeholder para imagem para evitar erros de arquivo não encontrado
+                    const caminho_imagem = `https://placehold.co/160x112/1e293b/94a3b8?text=${tipo.replace(' ', '+')}\\n${valor}`;
                     
                     baralho.push({ 
                         tipo: tipo, 
                         valor: valor, 
                         imagem: caminho_imagem, 
-                        dono: estilo, // 'moderno' ou 'extravagante'
-                        valor_final: valor,
-                        id: `${estilo}-${tipo}-${valor}` // ID único
+                        dono: estilo, 
+                        id: `${estilo}-${tipo}-${valor}`
                     });
                 }
             }
@@ -265,7 +271,7 @@
         async function updateFirestoreState(newState) {
             if (gameId && localGameState.gameMode === 'online') {
                 try {
-                    await setDoc(doc(db, gamesCollectionPath, gameId), newState);
+                    await setDoc(doc(db, gamesCollectionPath, gameId), newState, { merge: true });
                 } catch (e) {
                     console.error("Erro ao atualizar o Firestore: ", e);
                     statusMessageEl.textContent = "Erro de conexão.";
@@ -317,13 +323,8 @@
                     cellEl.dataset.row = i;
                     cellEl.dataset.col = j;
                     const cellState = localGameState.board[i][j];
-                    if (cellState) {
-                         if (cellState.revealed) {
-                             cellEl.style.backgroundImage = `url('${cellState.card.imagem}')`;
-                         } else {
-                             cellEl.textContent = "Ocupado";
-                             cellEl.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
-                         }
+                    if (cellState && cellState.card) {
+                         cellEl.style.backgroundImage = `url('${cellState.card.imagem}')`;
                     }
                     if (localGameState.highlightedCell && localGameState.highlightedCell[0] === i && localGameState.highlightedCell[1] === j) {
                         cellEl.classList.add('highlight');
@@ -342,8 +343,8 @@
             const nextTurnBtn = document.getElementById('next-turn-btn');
             const confirmChipsBtn = document.getElementById('confirm-chips-btn');
 
+            chipPanel.classList.toggle('hidden', localGameState.phase !== 'SELECAO_FICHAS');
             if (localGameState.phase === 'SELECAO_FICHAS') {
-                chipPanel.classList.remove('hidden');
                 const chipButtonsEl = document.getElementById('chip-buttons');
                 chipButtonsEl.innerHTML = '';
                 if (!localGameState.confirmations[localPlayerId]) {
@@ -355,11 +356,16 @@
                     confirmChipsBtn.disabled = true;
                     confirmChipsBtn.textContent = 'Aguardando Oponente';
                 }
-            } else {
-                chipPanel.classList.add('hidden');
             }
-
+            
             nextTurnBtn.classList.toggle('hidden', localGameState.phase !== 'FIM_TURNO' || !myTurn);
+
+            if (localGameState.phase === 'FIM_JOGO') {
+                endGameModalEl.classList.remove('hidden');
+                document.getElementById('winner-text').textContent = localGameState.winner;
+                document.getElementById('final-score-player').textContent = `${player.name}: ${player.points}`;
+                document.getElementById('final-score-opponent').textContent = `${opponent.name}: ${opponent.points}`;
+            }
         }
         
         function createChipButton(value, container) {
@@ -380,70 +386,81 @@
         }
 
         async function handleBoardCellClick(row, col) {
-            const gs = JSON.parse(JSON.stringify(localGameState));
+            let gs = JSON.parse(JSON.stringify(localGameState));
             if (gs.currentPlayerId !== localPlayerId) return;
 
             if (gs.phase === 'SELECAO_CARTAS') {
-                if (!selectedCard) { alert("Selecione uma carta da sua mão primeiro!"); return; }
+                if (!selectedCard) { 
+                    statusMessageEl.textContent = "Selecione uma carta da sua mão primeiro!"; 
+                    return; 
+                }
                 const highlighted = gs.highlightedCell;
-                if (!highlighted || highlighted[0] !== row || highlighted[1] !== col) { alert("Você só pode jogar no espaço destacado."); return; }
+                if (!highlighted || highlighted[0] !== row || highlighted[1] !== col) { 
+                    statusMessageEl.textContent = "Você só pode jogar no espaço destacado."; 
+                    return; 
+                }
 
                 const playKey = `${row},${col}`;
-                const play = gs.playsThisRow[playKey] || { player1: { card: null, chip: 0 }, player2: { card: null, chip: 0 } };
+                let play = gs.playsThisTurn[playKey] || { player1: null, player2: null };
 
-                if (play[localPlayerId].card) return; // Já jogou neste espaço
+                if (play[localPlayerId]) return;
 
                 const player = gs.players[localPlayerId];
                 player.hand = player.hand.filter(c => c.id !== selectedCard.id);
-                play[localPlayerId].card = selectedCard;
-                gs.playsThisRow[playKey] = play;
+                play[localPlayerId] = { card: selectedCard, chip: 0 };
+                gs.playsThisTurn[playKey] = play;
                 
                 selectedCard = null;
 
                 const opponentId = localPlayerId === 'player1' ? 'player2' : 'player1';
 
-                // Se o P1 acabou de jogar, é a vez do P2 no mesmo espaço
                 if (localPlayerId === 'player1') {
                     gs.currentPlayerId = 'player2';
                     gs.statusMessage = `Vez de ${gs.players.player2.name} jogar no mesmo espaço.`;
-                } 
-                // Se o P2 acabou de jogar, o espaço está completo
-                else {
-                    gs.board[row][col] = { revealed: false }; // Marca como ocupado
-                    gs.spacesPlayedThisRow++;
-                    gs.currentPlayerId = 'player1'; // P1 começa o próximo espaço
+                } else {
+                    gs.spacesPlayedInRow++;
+                    gs.currentPlayerId = 'player1'; 
+                    gs.highlightedCell = gs.spacesPlayedInRow < 3 ? [row, gs.spacesPlayedInRow] : null;
 
-                    if (gs.spacesPlayedThisRow >= 3) {
+                    if (gs.spacesPlayedInRow >= 3) {
                         gs.phase = 'SELECAO_FICHAS';
-                        gs.highlightedCell = null;
                         gs.statusMessage = "Fase de Fichas! Adicione fichas se desejar.";
                     } else {
-                        const nextCol = col + 1;
-                        gs.highlightedCell = [row, nextCol];
                         gs.statusMessage = `Vez de ${gs.players.player1.name} jogar no próximo espaço.`;
                     }
                 }
-            }
-
-            if (gs.phase === 'SELECAO_FICHAS') {
+            } else if (gs.phase === 'SELECAO_FICHAS') {
                  if (gs.confirmations[localPlayerId]) return;
-                 if (selectedChipValue === null) { alert("Selecione uma ficha primeiro!"); return; }
-                 
-                 if (row !== gs.currentRow) { alert("Só pode colocar fichas na linha atual."); return;}
-
-                 const play = gs.playsThisRow[`${row},${col}`];
-                 if (!play || !play[localPlayerId].card || play[localPlayerId].chip > 0) return;
+                 if (selectedChipValue === null) { 
+                     statusMessageEl.textContent = "Selecione uma ficha primeiro!";
+                     return; 
+                 }
+                 if (row !== gs.currentRow) {
+                      statusMessageEl.textContent = "Só pode colocar fichas na linha atual.";
+                      return;
+                 }
+                 const playKey = `${row},${col}`;
+                 const play = gs.playsThisTurn[playKey];
+                 if (!play || !play[localPlayerId] || play[localPlayerId].chip > 0) return;
                  
                  const player = gs.players[localPlayerId];
                  if (player.chips[selectedChipValue] > 0) {
                      player.chips[selectedChipValue]--;
                      play[localPlayerId].chip = selectedChipValue;
                      selectedChipValue = null;
-                 } else { alert(`Você não tem mais fichas de valor ${selectedChipValue}.`); }
+                     document.querySelectorAll('.chip-btn').forEach(b => b.classList.remove('selected'));
+                 } else { 
+                     statusMessageEl.textContent = `Você não tem mais fichas de valor ${selectedChipValue}.`; 
+                 }
             }
             
-            if (gs.gameMode === 'cpu') { localGameState = gs; updateUI(); } 
-            else { await updateFirestoreState(gs); }
+            if (gs.gameMode === 'cpu') { 
+                localGameState = gs; 
+                updateUI(); 
+                if (gs.currentPlayerId === 'player2') {
+                    setTimeout(() => runCpuTurn(gs), 1000);
+                }
+            } else { await updateFirestoreState(gs); }
         }
         
         function handleChipClick(value, buttonEl) {
@@ -453,92 +470,246 @@
         }
         
         document.getElementById('confirm-chips-btn').addEventListener('click', async () => {
-             const gs = JSON.parse(JSON.stringify(localGameState));
+             let gs = JSON.parse(JSON.stringify(localGameState));
              if(gs.phase !== 'SELECAO_FICHAS' || gs.confirmations[localPlayerId]) return;
              
              gs.confirmations[localPlayerId] = true;
-
-             const bothConfirmed = gs.confirmations.player1 && gs.confirmations.player2;
-
-             if (bothConfirmed) {
-                gs.phase = 'REVELACAO';
-                gs.statusMessage = "Ambos confirmaram! Revelando resultados...";
-             } else {
-                gs.statusMessage = "Você confirmou. Aguardando oponente...";
-             }
+             gs.statusMessage = "Você confirmou. Aguardando oponente...";
 
              if (gs.gameMode === 'cpu') { 
-                gs.players.player2.chips['5'] -= 1; // Simula CPU usando uma ficha
-                gs.confirmations.player2 = true;
-                localGameState = gs; 
-                if (gs.confirmations.player1 && gs.confirmations.player2) {
-                    setTimeout(() => revealRow(gs.currentRow), 1500);
-                }
+                gs.confirmations.player2 = true; // CPU confirma imediatamente
+                localGameState = gs;
                 updateUI();
-             } 
-             else { 
-                await updateFirestoreState(gs);
+                await resolveTurn();
+             } else { 
+                const bothConfirmed = gs.confirmations.player1 && gs.confirmations.player2;
                 if (bothConfirmed) {
-                    setTimeout(() => revealRow(gs.currentRow), 1500);
+                    gs.statusMessage = "Ambos confirmaram! Revelando resultados...";
                 }
+                await updateFirestoreState(gs);
              }
         });
 
-        function revealRow(rowIndex) {
-            let colIndex = 0;
-            const revealInterval = setInterval(async () => {
-                if(colIndex >= 3) {
-                    clearInterval(revealInterval);
-                    // TODO: Finalizar a linha e avançar para a próxima ou fim do turno
-                    return;
-                }
-                
-                const gs = JSON.parse(JSON.stringify(localGameState));
-                const play = gs.playsThisRow[`${rowIndex},${colIndex}`];
+        document.getElementById('next-turn-btn').addEventListener('click', async () => {
+            let gs = JSON.parse(JSON.stringify(localGameState));
+            if(gs.phase !== 'FIM_TURNO' || gs.currentPlayerId !== localPlayerId) return;
+            
+            prepareNextTurn(gs);
+            
+            if (gs.gameMode === 'cpu') {
+                localGameState = gs;
+                updateUI();
+            } else {
+                await updateFirestoreState(gs);
+            }
+        });
 
-                if(play && play.player1.card && play.player2.card) {
-                    const p1Card = play.player1.card;
-                    const p2Card = play.player2.card;
-                    p1Card.valor_final = p1Card.valor + play.player1.chip;
-                    p2Card.valor_final = p2Card.valor + play.player2.chip;
+        // ===== LÓGICA DE TURNO E PONTUAÇÃO =====
 
+        async function resolveTurn() {
+            let gs = JSON.parse(JSON.stringify(localGameState));
+            gs.phase = 'REVELACAO';
+
+            for(let row = 0; row < 3; row++) {
+                gs.currentRow = row;
+                gs.statusMessage = `Revelando linha ${row + 1}...`;
+                if (gs.gameMode === 'online') await updateFirestoreState(gs); else { localGameState = gs; updateUI(); }
+                await delay(1000);
+
+                for (let col = 0; col < 3; col++) {
+                    const playKey = `${row},${col}`;
+                    const play = gs.playsThisTurn[playKey];
+                    if (!play || !play.player1 || !play.player2) continue;
+
+                    const p1Play = play.player1;
+                    const p2Play = play.player2;
+                    const p1Value = p1Play.card.valor + p1Play.chip;
+                    const p2Value = p2Play.card.valor + p2Play.chip;
+                    
                     let winnerCard;
-                    if(p1Card.valor_final > p2Card.valor_final) winnerCard = p1Card;
-                    else if (p2Card.valor_final > p1Card.valor_final) winnerCard = p2Card;
-                    else winnerCard = { tipo: 'Empate', imagem: '' };
+                    if (p1Value > p2Value) winnerCard = p1Play.card;
+                    else if (p2Value > p1Value) winnerCard = p2Play.card;
+                    else winnerCard = p1Play.card; // Empate mantém a carta do P1 por padrão
                     
-                    gs.board[rowIndex][colIndex] = { revealed: true, card: winnerCard };
-                    
-                    if (gs.gameMode === 'cpu') { localGameState = gs; updateUI(); } 
-                    else { await updateFirestoreState(gs); }
+                    gs.board[row][col] = { card: winnerCard };
+                    if (gs.gameMode === 'online') await updateFirestoreState(gs); else { localGameState = gs; updateUI(); }
+                    await delay(1500);
                 }
-                colIndex++;
-            }, 2500);
+            }
+
+            // Aplicar regras especiais e calcular pontos
+            gs = applySpecialRules(gs);
+            gs = calculateScores(gs);
+            
+            if (gs.turn >= TOTAL_TURNOS) {
+                gs.phase = 'FIM_JOGO';
+                const p1 = gs.players.player1;
+                const p2 = gs.players.player2;
+                if(p1.points > p2.points) gs.winner = `${p1.name} venceu!`;
+                else if (p2.points > p1.points) gs.winner = `${p2.name} venceu!`;
+                else gs.winner = "Empate!";
+            } else {
+                gs.phase = 'FIM_TURNO';
+                gs.statusMessage = `Turno ${gs.turn} finalizado! Clique em "Próximo Turno".`;
+                gs.currentPlayerId = gs.turnStarter; // Quem começou o turno clica
+            }
+
+            if (gs.gameMode === 'cpu') { localGameState = gs; updateUI(); } 
+            else { await updateFirestoreState(gs); }
         }
 
+        function applySpecialRules(gs) {
+            let board = gs.board;
+            // Regra de Anulação: Sofás (Horizontal)
+            for(let r=0; r<3; r++){
+                for(let c=0; c<2; c++){
+                    const cell1 = board[r][c]?.card;
+                    const cell2 = board[r][c+1]?.card;
+                    if(cell1 && cell2 && cell1.tipo === 'Sofa' && cell2.tipo === 'Sofa' && cell1.dono !== cell2.dono){
+                        // Anula o segundo sofá encontrado (o que foi revelado depois)
+                        board[r][c+1] = null;
+                    }
+                }
+            }
+             // Regra de Anulação: Estantes (Vertical)
+            for(let c=0; c<3; c++){
+                for(let r=0; r<2; r++){
+                    const cell1 = board[r][c]?.card;
+                    const cell2 = board[r+1][c]?.card;
+                    if(cell1 && cell2 && cell1.tipo === 'Estante' && cell2.tipo === 'Estante' && cell1.dono !== cell2.dono){
+                        board[r+1][c] = null;
+                    }
+                }
+            }
+            gs.board = board;
+            return gs;
+        }
+
+        function calculateScores(gs) {
+            let p1TurnPoints = 0;
+            let p2TurnPoints = 0;
+            const board = gs.board;
+
+            // 1. Pontuação Básica: Mais mobílias
+            let p1Cards = 0, p2Cards = 0;
+            for(let r=0; r<3; r++) for(let c=0; c<3; c++) {
+                if(board[r][c]?.card?.dono === 'moderno') p1Cards++;
+                if(board[r][c]?.card?.dono === 'extravagante') p2Cards++;
+            }
+            if (p1Cards > p2Cards) p1TurnPoints += 5;
+            if (p2Cards > p1Cards) p2TurnPoints += 5;
+
+            // 2. Bônus de Organização
+            // Mesa de Centro ou Tapete no centro
+            const centerCard = board[1][1]?.card;
+            if(centerCard && (centerCard.tipo === 'Mesa de Centro' || centerCard.tipo === 'Tapete')) {
+                if (centerCard.dono === 'moderno') p1TurnPoints += 2; else p2TurnPoints += 2;
+            }
+
+            // Linhas completas
+            const lines = [
+                [[0,0],[0,1],[0,2]], [[1,0],[1,1],[1,2]], [[2,0],[2,1],[2,2]], // Rows
+                [[0,0],[1,0],[2,0]], [[0,1],[1,1],[2,1]], [[0,2],[1,2],[2,2]], // Cols
+                [[0,0],[1,1],[2,2]], [[0,2],[1,1],[2,0]]  // Diags
+            ];
+            lines.forEach(line => {
+                const cardsInLine = line.map(([r,c]) => board[r][c]?.card).filter(Boolean);
+                if(cardsInLine.length === 3) {
+                    const owner = cardsInLine[0].dono;
+                    if(cardsInLine.every(c => c.dono === owner)) {
+                        const hasEstante = cardsInLine.some(c => c.tipo === 'Estante');
+                        const points = hasEstante ? 2 : 1;
+                        if(owner === 'moderno') p1TurnPoints += points; else p2TurnPoints += points;
+                    }
+                }
+            });
+
+            // Sequência Especial: Sofá -> Mesa -> TV
+            for(let r=0; r<3; r++) { // Horizontal
+                const rowCards = [board[r][0]?.card, board[r][1]?.card, board[r][2]?.card];
+                if(rowCards.every(Boolean) && rowCards[0].tipo === 'Sofa' && rowCards[1].tipo === 'Mesa de Centro' && rowCards[2].tipo === 'TV') {
+                    if(rowCards.every(c => c.dono === rowCards[0].dono)) {
+                        if(rowCards[0].dono === 'moderno') p1TurnPoints += 3; else p2TurnPoints += 3;
+                    }
+                }
+            }
+             for(let c=0; c<3; c++) { // Vertical
+                const colCards = [board[0][c]?.card, board[1][c]?.card, board[2][c]?.card];
+                if(colCards.every(Boolean) && colCards[0].tipo === 'Sofa' && colCards[1].tipo === 'Mesa de Centro' && colCards[2].tipo === 'TV') {
+                    if(colCards.every(c => c.dono === colCards[0].dono)) {
+                        if(colCards[0].dono === 'moderno') p1TurnPoints += 3; else p2TurnPoints += 3;
+                    }
+                }
+            }
+            
+            // TODO: Bônus de cantos e laterais (complexidade alta, adicionado o básico primeiro)
+            
+            gs.players.player1.points += p1TurnPoints;
+            gs.players.player2.points += p2TurnPoints;
+            gs.statusMessage = `Pontuação do turno: ${gs.players.player1.name} +${p1TurnPoints}, ${gs.players.player2.name} +${p2TurnPoints}.`;
+
+            return gs;
+        }
+
+        function prepareNextTurn(gs) {
+            gs.turn++;
+            gs.board = Array(3).fill(null).map(() => Array(3).fill(null));
+            gs.playsThisTurn = {};
+            gs.currentRow = 0;
+            gs.spacesPlayedInRow = 0;
+            gs.confirmations = { player1: false, player2: false };
+            gs.turnStarter = gs.turnStarter === 'player1' ? 'player2' : 'player1';
+            gs.currentPlayerId = gs.turnStarter;
+            gs.highlightedCell = [0, 0];
+            gs.phase = 'SELECAO_CARTAS';
+            gs.statusMessage = `Turno ${gs.turn}! Vez de ${gs.players[gs.currentPlayerId].name}.`;
+
+            // Comprar 9 cartas
+            for(let i=0; i<9; i++) {
+                if(gs.decks.moderno.length > 0) gs.players.player1.hand.push(gs.decks.moderno.pop());
+                if(gs.decks.extravagante.length > 0) gs.players.player2.hand.push(gs.decks.extravagante.pop());
+            }
+
+            return gs;
+        }
+        
         // ===== INICIALIZAÇÃO DO JOGO =====
         
         function createInitialGameState(player1Name, player2Name, mode) {
-            const baralhoModerno = shuffle(criar_baralho('moderno'));
-            const baralhoExtravagante = shuffle(criar_baralho('extravagante'));
+            const baralhoModerno = shuffle(criar_baralho_completo('moderno'));
+            const baralhoExtravagante = shuffle(criar_baralho_completo('extravagante'));
             return {
                 gameId, gameMode: mode, turn: 1, phase: 'SELECAO_CARTAS',
-                statusMessage: `Aguardando oponente...`,
-                board: {
-                    '0': { '0': null, '1': null, '2': null },
-                    '1': { '0': null, '1': null, '2': null },
-                    '2': { '0': null, '1': null, '2': null }
-                },
+                board: Array(3).fill(null).map(() => Array(3).fill(null)),
                 players: {
                     player1: { name: player1Name, style: 'moderno', points: 0, hand: baralhoModerno.splice(0, 12), chips: { '5': 3, '7': 2 } },
                     player2: { name: player2Name, style: 'extravagante', points: 0, hand: baralhoExtravagante.splice(0, 12), chips: { '5': 3, '7': 2 } }
                 },
+                decks: {
+                    moderno: baralhoModerno,
+                    extravagante: baralhoExtravagante
+                },
+                turnStarter: 'player1',
                 currentPlayerId: 'player1', highlightedCell: [0, 0], currentRow: 0,
-                spacesPlayedThisRow: 0, playsThisRow: {},
-                confirmations: { player1: false, player2: false }
+                spacesPlayedInRow: 0, playsThisTurn: {},
+                confirmations: { player1: false, player2: false },
+                statusMessage: `Aguardando oponente...`,
             };
         }
         
+        // ===== LÓGICA DA CPU (Simplificada) =====
+        function runCpuTurn(gs) {
+             if (gs.currentPlayerId !== 'player2') return;
+
+             if(gs.phase === 'SELECAO_CARTAS' && gs.highlightedCell) {
+                 const cpu = gs.players.player2;
+                 const cardToPlay = cpu.hand[0]; // CPU joga a primeira carta
+                 selectedCard = cardToPlay;
+                 handleBoardCellClick(gs.highlightedCell[0], gs.highlightedCell[1]);
+             }
+        }
+        
+        // ===== LISTENERS DE UI E FIREBASE =====
         document.getElementById('start-cpu-game-btn').addEventListener('click', () => {
             const playerName = document.getElementById('player-name-input').value.trim() || "Jogador";
             gameId = 'local_cpu_game';
@@ -564,11 +735,6 @@
              document.getElementById('create-game-btn').disabled = true;
              document.getElementById('join-game-btn').disabled = true;
              
-             const waitingMsg = document.createElement('p');
-             waitingMsg.textContent = 'Aguardando oponente...';
-             waitingMsg.className = 'text-teal-300 mt-4 animate-pulse';
-             document.getElementById('online-options').appendChild(waitingMsg);
-
              listenToGameChanges(newGameId);
         });
 
@@ -585,15 +751,19 @@
                 let gameData = gameSnap.data();
                 gameData.players.player2.name = playerName;
                 gameData.statusMessage = `${gameData.players.player1.name} começa o jogo!`;
-                await setDoc(gameRef, gameData);
+                await updateDoc(gameRef, {
+                    'players.player2.name': playerName,
+                    'statusMessage': gameData.statusMessage
+                });
                 listenToGameChanges(joinId);
             } else { alert("Sala não encontrada ou já está cheia!"); }
         });
         
         function listenToGameChanges(id) {
-            unsubscribe = onSnapshot(doc(db, gamesCollectionPath, id), (doc) => {
+            unsubscribe = onSnapshot(doc(db, gamesCollectionPath, id), async (doc) => {
                 if (doc.exists()) {
                     const serverState = doc.data();
+                    const wasConfirmationPhase = localGameState.phase === 'SELECAO_FICHAS';
                     localGameState = serverState;
                     const player2Joined = serverState.players.player2.name !== "Aguardando...";
                     
@@ -604,6 +774,12 @@
                     
                     if (gameContainerEl.className.indexOf('hidden') === -1) {
                         updateUI();
+                    }
+
+                    // Se ambos confirmaram as fichas, apenas o P1 inicia a resolução do turno
+                    const bothConfirmed = serverState.confirmations.player1 && serverState.confirmations.player2;
+                    if(wasConfirmationPhase && bothConfirmed && localPlayerId === 'player1') {
+                         await resolveTurn();
                     }
 
                 } else { 
@@ -628,4 +804,3 @@
     </script>
 </body>
 </html>
-
