@@ -436,7 +436,7 @@
                         cellEl.classList.add('highlight');
                     }
                     
-                    if (localGameState.swapSelection?.some(sel => sel[0] === i && sel[1] === j)) {
+                    if (localGameState.swapSelection?.includes(`${i},${j}`)) {
                         cellEl.classList.add('swap-selection');
                     }
                     
@@ -562,23 +562,19 @@
                  } else { statusMessageEl.textContent = `Você não tem mais fichas de valor ${selectedChipValue}.`; }
 
             } else if (gs.phase === 'TROCA_RELOGIO' && gs.clockPowerPlayer === localPlayerId) {
-                if (!gs.board[row][col]?.card) return; // Só pode selecionar espaços com cartas
-                const pos = [row, col];
-                const selectionIndex = gs.swapSelection.findIndex(sel => sel[0] === row && sel[1] === col);
+                if (!gs.board[row][col]?.card) return;
+                const pos = `${row},${col}`;
+                const selectionIndex = gs.swapSelection.indexOf(pos);
 
                 if (selectionIndex > -1) {
-                    gs.swapSelection.splice(selectionIndex, 1); // Desseleciona
+                    gs.swapSelection.splice(selectionIndex, 1);
                 } else if (gs.swapSelection.length < 2) {
-                    gs.swapSelection.push(pos); // Seleciona
+                    gs.swapSelection.push(pos);
                 }
                 
-                if (gs.swapSelection.length === 2) {
-                    gs.statusMessage = "Cartas selecionadas. Confirme a troca.";
-                } else if (gs.swapSelection.length === 1) {
-                    gs.statusMessage = "Selecione a segunda carta para a troca.";
-                } else {
-                    gs.statusMessage = "Poder do relógio! Selecione a primeira carta para a troca.";
-                }
+                if (gs.swapSelection.length === 2) { gs.statusMessage = "Cartas selecionadas. Confirme a troca."; }
+                else if (gs.swapSelection.length === 1) { gs.statusMessage = "Selecione a segunda carta para a troca."; }
+                else { gs.statusMessage = "Poder do relógio! Selecione a primeira carta para a troca."; }
             }
             
             if (gs.gameMode === 'cpu') { 
@@ -635,10 +631,13 @@
             let gs = JSON.parse(JSON.stringify(localGameState));
             if (gs.phase !== 'TROCA_RELOGIO' || gs.clockPowerPlayer !== localPlayerId || gs.swapSelection.length !== 2) return;
 
-            const [pos1, pos2] = gs.swapSelection;
-            const tempCard = gs.board[pos1[0]][pos1[1]];
-            gs.board[pos1[0]][pos1[1]] = gs.board[pos2[0]][pos2[1]];
-            gs.board[pos2[0]][pos2[1]] = tempCard;
+            const [pos1Str, pos2Str] = gs.swapSelection;
+            const [r1, c1] = pos1Str.split(',').map(Number);
+            const [r2, c2] = pos2Str.split(',').map(Number);
+
+            const tempCard = gs.board[r1][c1];
+            gs.board[r1][c1] = gs.board[r2][c2];
+            gs.board[r2][c2] = tempCard;
             
             gs.swapSelection = [];
             gs.clockPowerPlayer = null;
@@ -648,7 +647,6 @@
                 proceedToScoring(gs);
             } else {
                 await updateFirestoreState(gs);
-                // O host irá prosseguir para a pontuação
                 if(localPlayerId === 'player1') {
                     proceedToScoring(gs);
                 }
@@ -736,7 +734,6 @@
             }
 
             if (gs.currentRow >= 2) {
-                // LÓGICA DO RELÓGIO
                 let p1Clocks = 0, p2Clocks = 0;
                 for(let r=0; r<3; r++) for(let c=0; c<3; c++) {
                     const card = gs.board[r][c]?.card;
@@ -790,7 +787,6 @@
         }
 
         function calculateScores(gs) {
-            // ... (A função calculateScores permanece a mesma)
             let p1TurnPoints = 0;
             let p2TurnPoints = 0;
             const board = gs.board;
