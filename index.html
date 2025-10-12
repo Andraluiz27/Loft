@@ -188,8 +188,9 @@
             <div class="lg:col-span-1 flex flex-col gap-4">
                 <div class="bg-slate-800 p-4 rounded-lg">
                     <h2 class="text-2xl font-bold text-teal-400 mb-2">Placar</h2>
-                    <p class="text-lg"><span id="player-score-name">Você</span>: <strong id="player-score" class="text-2xl text-sky-400">0</strong></p>
-                    <p class="text-lg"><span id="opponent-score-name">CPU</span>: <strong id="opponent-score" class="text-2xl text-fuchsia-400">0</strong></p>
+                    <div id="score-display">
+                        <!-- Pontuação será inserida aqui dinamicamente -->
+                    </div>
                 </div>
                 
                 <div class="bg-slate-800 p-4 rounded-lg flex-grow">
@@ -368,10 +369,14 @@
             
             document.getElementById('player-name').textContent = `${player.name} (Moderno)`;
             document.getElementById('opponent-name').textContent = `${opponent.name} (Extravagante)`;
-            document.getElementById('player-score-name').textContent = player.name;
-            document.getElementById('opponent-score-name').textContent = opponent.name;
-            document.getElementById('player-score').textContent = player.points;
-            document.getElementById('opponent-score').textContent = opponent.points;
+            
+            // ATUALIZAÇÃO DA PONTUAÇÃO
+            const scoreDisplay = document.getElementById('score-display');
+            scoreDisplay.innerHTML = `
+                <p class="text-lg">${player.name}: <strong class="text-2xl text-sky-400">${player.points}</strong> <span class="text-base text-slate-400">(+${player.lastTurnPoints})</span></p>
+                <p class="text-lg">${opponent.name}: <strong class="text-2xl text-fuchsia-400">${opponent.points}</strong> <span class="text-base text-slate-400">(+${opponent.lastTurnPoints})</span></p>
+            `;
+
             document.getElementById('current-turn').textContent = localGameState.turn;
             statusMessageEl.textContent = localGameState.statusMessage;
             
@@ -470,7 +475,20 @@
                 }
             }
             
-            nextTurnBtn.classList.toggle('hidden', localGameState.phase !== 'FIM_TURNO' || localGameState.turnStarter === localPlayerId);
+            if (localGameState.phase === 'FIM_TURNO') {
+                if (!localGameState.nextTurnConfirmations[localPlayerId]) {
+                    nextTurnBtn.classList.remove('hidden');
+                    nextTurnBtn.disabled = false;
+                    nextTurnBtn.textContent = 'Próximo Turno';
+                } else {
+                    nextTurnBtn.classList.remove('hidden');
+                    nextTurnBtn.disabled = true;
+                    nextTurnBtn.textContent = 'Aguardando Oponente...';
+                }
+            } else {
+                nextTurnBtn.classList.add('hidden');
+            }
+            
             const canSwap = localGameState.phase === 'TROCA_RELOGIO' && localGameState.clockPowerPlayer === localPlayerId && localGameState.swapSelection?.length === 2;
             confirmSwapBtn.classList.toggle('hidden', !canSwap);
 
@@ -482,7 +500,6 @@
                 document.getElementById('final-score-opponent').textContent = `${opponent.name}: ${opponent.points}`;
             }
 
-            // LÓGICA DE EXIBIÇÃO DO EMBATE
             if (localGameState.phase === 'REVELACAO_EMBATE' && localGameState.clashColumn !== null) {
                 const play = localGameState.playsThisTurn[`${localGameState.currentRow},${localGameState.clashColumn}`];
                 if (play) {
@@ -621,10 +638,20 @@
 
         document.getElementById('next-turn-btn').addEventListener('click', async () => {
             let gs = JSON.parse(JSON.stringify(localGameState));
-            if(gs.phase !== 'FIM_TURNO' || gs.turnStarter === localPlayerId) return;
-            gs = prepareNextTurn(gs);
-            if (gs.gameMode === 'cpu') { localGameState = gs; updateUI(); }
-            else { await updateFirestoreState(gs); }
+            if (gs.phase !== 'FIM_TURNO' || gs.nextTurnConfirmations[localPlayerId]) return;
+            
+            gs.nextTurnConfirmations[localPlayerId] = true;
+            gs.statusMessage = "Aguardando oponente para o próximo turno...";
+
+            if (gs.gameMode === 'cpu') {
+                gs.nextTurnConfirmations.player2 = true;
+                localGameState = gs;
+                gs = prepareNextTurn(gs);
+                localGameState = gs;
+                updateUI();
+            } else {
+                await updateFirestoreState(gs);
+            }
         });
 
         document.getElementById('confirm-swap-btn').addEventListener('click', async () => {
@@ -779,7 +806,7 @@
                 else gs.winner = "Empate!";
             } else {
                 gs.phase = 'FIM_TURNO';
-                gs.statusMessage = `Turno ${gs.turn} finalizado! O iniciador pode clicar em "Próximo Turno".`;
+                gs.statusMessage = `Turno ${gs.turn} finalizado! Clique em "Próximo Turno" para continuar.`;
             }
 
             if (gs.gameMode === 'cpu') { localGameState = gs; updateUI(); } 
@@ -787,6 +814,8 @@
         }
 
         function calculateScores(gs) {
+            const oldP1Points = gs.players.player1.points;
+            const oldP2Points = gs.players.player2.points;
             let p1TurnPoints = 0;
             let p2TurnPoints = 0;
             const board = gs.board;
@@ -848,8 +877,12 @@
             ['Vaso de Planta', 'Relogio'].forEach(type => {
                 checkConnection(type, [1,0], [1,2]); checkConnection(type, [0,1], [2,1]);
             });
+            
             gs.players.player1.points += p1TurnPoints;
             gs.players.player2.points += p2TurnPoints;
+            gs.players.player1.lastTurnPoints = p1TurnPoints;
+            gs.players.player2.lastTurnPoints = p2TurnPoints;
+            
             gs.statusMessage = `Pontuação do turno: ${gs.players.player1.name} +${p1TurnPoints}, ${gs.players.player2.name} +${p2TurnPoints}.`;
             return gs;
         }
@@ -861,6 +894,7 @@
             gs.currentRow = 0;
             gs.spacesPlayedInRow = 0;
             gs.confirmations = { player1: false, player2: false };
+            gs.nextTurnConfirmations = { player1: false, player2: false };
             gs.turnStarter = gs.turnStarter === 'player1' ? 'player2' : 'player1';
             gs.currentPlayerId = gs.turnStarter;
             gs.highlightedCell = [0, 0];
@@ -887,8 +921,8 @@
                 gameId, gameMode: mode, turn: 1, phase: 'SELECAO_CARTAS',
                 board: createEmptyBoard(),
                 players: {
-                    player1: { name: player1Name, style: 'moderno', points: 0, hand: baralhoModerno.splice(0, 12), chips: { '5': 3, '7': 2 } },
-                    player2: { name: player2Name, style: 'extravagante', points: 0, hand: baralhoExtravagante.splice(0, 12), chips: { '5': 3, '7': 2 } }
+                    player1: { name: player1Name, style: 'moderno', points: 0, hand: baralhoModerno.splice(0, 12), chips: { '5': 3, '7': 2 }, lastTurnPoints: 0 },
+                    player2: { name: player2Name, style: 'extravagante', points: 0, hand: baralhoExtravagante.splice(0, 12), chips: { '5': 3, '7': 2 }, lastTurnPoints: 0 }
                 },
                 decks: {
                     moderno: baralhoModerno,
@@ -898,6 +932,7 @@
                 currentPlayerId: 'player1', highlightedCell: [0, 0], currentRow: 0,
                 spacesPlayedInRow: 0, playsThisTurn: {},
                 confirmations: { player1: false, player2: false },
+                nextTurnConfirmations: { player1: false, player2: false },
                 clashColumn: null,
                 clockPowerPlayer: null,
                 swapSelection: [],
@@ -1000,6 +1035,7 @@
                     const serverState = doc.data();
                     const wasConfirmationPhase = localGameState.phase === 'SELECAO_FICHAS';
                     const wasSwapPhase = localGameState.phase === 'TROCA_RELOGIO';
+                    const wasEndTurnPhase = localGameState.phase === 'FIM_TURNO';
                     localGameState = serverState;
 
                     const player2Joined = serverState.players.player2.name !== "Aguardando...";
@@ -1013,13 +1049,19 @@
                         updateUI();
                     }
 
-                    const bothConfirmed = serverState.confirmations.player1 && serverState.confirmations.player2;
-                    if(wasConfirmationPhase && bothConfirmed && localPlayerId === 'player1') {
+                    const bothChipConfirmed = serverState.confirmations.player1 && serverState.confirmations.player2;
+                    if(wasConfirmationPhase && bothChipConfirmed && localPlayerId === 'player1') {
                          startRowResolution();
                     }
                     
                     if (wasSwapPhase && serverState.phase !== 'TROCA_RELOGIO' && localPlayerId === 'player1') {
                         proceedToScoring(serverState);
+                    }
+
+                    const bothNextTurnConfirmed = serverState.nextTurnConfirmations?.player1 && serverState.nextTurnConfirmations?.player2;
+                    if(wasEndTurnPhase && bothNextTurnConfirmed && localPlayerId === 'player1') {
+                        const nextState = prepareNextTurn(serverState);
+                        await updateFirestoreState(nextState);
                     }
 
 
