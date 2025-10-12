@@ -398,8 +398,11 @@
                     const cellState = localGameState.board[i][j];
                     const playData = localGameState.playsThisTurn[`${i},${j}`];
 
-                    if (cellState && cellState.card) {
+                    if (cellState?.card) {
                          cellEl.style.backgroundImage = `url('${cellState.card.imagem}')`;
+                    } else if (cellState?.annulled) {
+                        cellEl.style.backgroundColor = 'rgba(100, 20, 20, 0.5)';
+                        cellEl.textContent = "Anulado";
                     } else if (playData) {
                          cellEl.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
                          cellEl.textContent = "Ocupado";
@@ -689,25 +692,45 @@
                 gs.phase = 'REVELACAO_EMBATE';
                 gs.clashColumn = col;
                 if (gs.gameMode === 'online') await updateFirestoreState(gs);
-                else { localGameState = gs; updateUI(); } // No modo CPU, força a atualização da UI
+                else { localGameState = gs; updateUI(); } 
 
-                await delay(4000); // Duração da animação + resultado
+                await delay(4000);
 
-                // 2. Calcula o vencedor e atualiza o tabuleiro
+                // 2. Calcula o vencedor e aplica regras de anulação
                 const p1Value = play.player1.card.valor + play.player1.chip;
                 const p2Value = play.player2.card.valor + play.player2.chip;
                 let winnerCard = (p1Value >= p2Value) ? play.player1.card : play.player2.card;
+                let isAnnulled = false;
                 
-                gs.board[gs.currentRow][col] = { card: winnerCard };
-                gs.phase = 'REVELACAO'; // Volta para a fase geral de revelação
+                // Regra de anulação de Sofá (Horizontal)
+                if (winnerCard.tipo === 'Sofa' && col > 0) {
+                    const adjacentCell = gs.board[gs.currentRow][col - 1];
+                    if (adjacentCell?.card?.tipo === 'Sofa' && adjacentCell.card.dono !== winnerCard.dono) {
+                        isAnnulled = true;
+                    }
+                }
+                // Regra de anulação de Estante (Vertical)
+                if (winnerCard.tipo === 'Estante' && gs.currentRow > 0) {
+                    const adjacentCell = gs.board[gs.currentRow - 1][col];
+                    if (adjacentCell?.card?.tipo === 'Estante' && adjacentCell.card.dono !== winnerCard.dono) {
+                        isAnnulled = true;
+                    }
+                }
+
+                if (isAnnulled) {
+                    gs.board[gs.currentRow][col] = { card: null, annulled: true };
+                } else {
+                    gs.board[gs.currentRow][col] = { card: winnerCard, annulled: false };
+                }
+
+                gs.phase = 'REVELACAO';
                 gs.clashColumn = null;
                 if (gs.gameMode === 'online') await updateFirestoreState(gs);
                 else { localGameState = gs; updateUI(); }
-                await delay(500); // Pequena pausa antes do próximo embate
+                await delay(500);
             }
 
             if (gs.currentRow >= 2) {
-                gs = applySpecialRules(gs);
                 gs = calculateScores(gs);
                 
                 if (gs.turn >= TOTAL_TURNOS) {
@@ -732,30 +755,6 @@
 
             if (gs.gameMode === 'cpu') { localGameState = gs; updateUI(); } 
             else { await updateFirestoreState(gs); }
-        }
-
-        function applySpecialRules(gs) {
-            let board = gs.board;
-            for(let r=0; r<3; r++){
-                for(let c=0; c<2; c++){
-                    const cell1 = board[r][c]?.card;
-                    const cell2 = board[r][c+1]?.card;
-                    if(cell1 && cell2 && cell1.tipo === 'Sofa' && cell2.tipo === 'Sofa' && cell1.dono !== cell2.dono){
-                        board[r][c+1] = null;
-                    }
-                }
-            }
-            for(let c=0; c<3; c++){
-                for(let r=0; r<2; r++){
-                    const cell1 = board[r][c]?.card;
-                    const cell2 = board[r+1][c]?.card;
-                    if(cell1 && cell2 && cell1.tipo === 'Estante' && cell2.tipo === 'Estante' && cell1.dono !== cell2.dono){
-                        board[r+1][c] = null;
-                    }
-                }
-            }
-            gs.board = board;
-            return gs;
         }
 
         function calculateScores(gs) {
