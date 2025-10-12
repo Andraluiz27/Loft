@@ -41,7 +41,7 @@
             border: 2px dashed #14b8a6; /* teal-500 */
         }
         .board-container {
-            background-image: url('https://placehold.co/600x400/1e293b/475569?text=LOFT'); /* Imagem de fundo da sala */
+            background-image: url('imagens/sala.png'); /* Imagem de fundo da sala */
             background-size: cover;
             background-position: center;
             padding: 1rem;
@@ -254,8 +254,9 @@
             for (const [tipo, valores] of Object.entries(VALORES_CARTAS)) {
                 for (const valor of valores) {
                     const nome_formatado = tipo.toLowerCase().replace(/ /g, '_');
-                    // Usando um placeholder para imagem para evitar erros de arquivo não encontrado
-                    const caminho_imagem = `https://placehold.co/160x112/1e293b/94a3b8?text=${tipo.replace(' ', '+')}\\n${valor}`;
+                    // MODIFICAÇÃO: Apontando para a pasta local 'imagens'
+                    const nome_ficheiro = `${estilo}_${nome_formatado}_${valor}.png`;
+                    const caminho_imagem = `imagens/${nome_ficheiro}`;
                     
                     baralho.push({ 
                         tipo: tipo, 
@@ -852,6 +853,4 @@
     </script>
 </body>
 </html>
-
-
 
