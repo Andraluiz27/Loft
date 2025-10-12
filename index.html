@@ -456,7 +456,7 @@
                 }
             }
             
-            nextTurnBtn.classList.toggle('hidden', localGameState.phase !== 'FIM_TURNO' || localGameState.turnStarter !== localPlayerId);
+            nextTurnBtn.classList.toggle('hidden', localGameState.phase !== 'FIM_TURNO' || localGameState.turnStarter === localPlayerId);
 
             if (localGameState.phase === 'FIM_JOGO') {
                 endGameModalEl.classList.remove('hidden');
@@ -518,13 +518,13 @@
                 
                 selectedCard = null;
 
-                if (localPlayerId === 'player1') {
-                    gs.currentPlayerId = 'player2';
-                    gs.statusMessage = `Vez de ${gs.players.player2.name} jogar no mesmo espaço.`;
-                } else {
+                // CORREÇÃO DA LÓGICA DE TURNO
+                const currentPlay = gs.playsThisTurn[playKey];
+                if (currentPlay.player1 && currentPlay.player2) {
+                    // O espaço está cheio, avança para o próximo
                     gs.spacesPlayedInRow++;
                     gs.currentPlayerId = gs.turnStarter;
-                    
+
                     if (gs.spacesPlayedInRow >= 3) {
                         gs.phase = 'SELECAO_FICHAS';
                         gs.highlightedCell = null;
@@ -533,7 +533,13 @@
                         gs.highlightedCell = [gs.currentRow, gs.spacesPlayedInRow];
                         gs.statusMessage = `Vez de ${gs.players[gs.currentPlayerId].name} jogar no próximo espaço.`;
                     }
+                } else {
+                    // O espaço não está cheio, passa a vez para o outro jogador
+                    const otherPlayer = localPlayerId === 'player1' ? 'player2' : 'player1';
+                    gs.currentPlayerId = otherPlayer;
+                    gs.statusMessage = `Vez de ${gs.players[otherPlayer].name} jogar no mesmo espaço.`;
                 }
+
             } else if (gs.phase === 'SELECAO_FICHAS' && !gs.confirmations[localPlayerId]) {
                  if (selectedChipValue === null) { 
                      statusMessageEl.textContent = "Selecione uma ficha primeiro!";
@@ -607,7 +613,7 @@
 
         document.getElementById('next-turn-btn').addEventListener('click', async () => {
             let gs = JSON.parse(JSON.stringify(localGameState));
-            if(gs.phase !== 'FIM_TURNO' || gs.turnStarter !== localPlayerId) return;
+            if(gs.phase !== 'FIM_TURNO' || gs.turnStarter === localPlayerId) return;
             
             prepareNextTurn(gs);
             
@@ -851,6 +857,7 @@
             gs.highlightedCell = [0, 0];
             gs.phase = 'SELECAO_CARTAS';
             gs.statusMessage = `Turno ${gs.turn}! Vez de ${gs.players[gs.currentPlayerId].name}.`;
+            gs.clashColumn = null;
 
             for(let i=0; i<9; i++) {
                 if(gs.decks.moderno.length > 0) gs.players.player1.hand.push(gs.decks.moderno.pop());
