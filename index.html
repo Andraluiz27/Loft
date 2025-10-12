@@ -107,6 +107,7 @@
                     <input type="text" id="join-game-input" placeholder="Cole o ID da Sala" class="w-full bg-slate-700 border border-slate-600 focus:border-teal-500 focus:ring-teal-500 text-white p-3 rounded-md">
                     <button id="join-game-btn" class="px-6 py-3 bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-bold rounded-lg shadow-lg transition-transform transform hover:scale-105">Entrar</button>
                 </div>
+                <p id="lobby-status" class="text-amber-400 h-8 mt-2"></p>
             </div>
         </div>
     </div>
@@ -725,6 +726,8 @@
         }
         
         // ===== LISTENERS DE UI E FIREBASE =====
+        const lobbyStatusEl = document.getElementById('lobby-status');
+
         document.getElementById('start-cpu-game-btn').addEventListener('click', () => {
             const playerName = document.getElementById('player-name-input').value.trim() || "Jogador";
             gameId = 'local_cpu_game';
@@ -738,37 +741,62 @@
         
         document.getElementById('create-game-btn').addEventListener('click', async () => {
              const playerName = document.getElementById('player-name-input').value.trim();
-             if (!playerName) { alert("Por favor, digite seu nome."); return; }
+             if (!playerName) { 
+                 lobbyStatusEl.textContent = "Por favor, digite seu nome.";
+                 return; 
+             }
+             
+             lobbyStatusEl.textContent = 'Criando sala...';
              const newGameId = Math.random().toString(36).substring(2, 6).toUpperCase();
              gameId = newGameId;
              localPlayerId = 'player1';
-             const initialState = createInitialGameState(playerName, "Aguardando...", "online");
-             await setDoc(doc(db, gamesCollectionPath, gameId), initialState);
-
-             document.getElementById('game-id-display').textContent = newGameId;
-             document.getElementById('game-id-section').classList.remove('hidden');
-             document.getElementById('create-game-btn').disabled = true;
-             document.getElementById('join-game-btn').disabled = true;
              
-             listenToGameChanges(newGameId);
+             try {
+                const initialState = createInitialGameState(playerName, "Aguardando...", "online");
+                await setDoc(doc(db, gamesCollectionPath, gameId), initialState);
+
+                document.getElementById('game-id-display').textContent = newGameId;
+                document.getElementById('game-id-section').classList.remove('hidden');
+                document.getElementById('create-game-btn').disabled = true;
+                document.getElementById('join-game-btn').disabled = true;
+                lobbyStatusEl.textContent = 'Aguardando oponente...';
+                
+                listenToGameChanges(newGameId);
+             } catch (error) {
+                console.error("Erro ao criar sala:", error);
+                lobbyStatusEl.textContent = 'Erro ao criar a sala. Tente novamente.';
+             }
         });
 
         document.getElementById('join-game-btn').addEventListener('click', async () => {
             const joinId = document.getElementById('join-game-input').value.trim().toUpperCase();
             const playerName = document.getElementById('player-name-input').value.trim();
-            if (!joinId || !playerName) { alert("Preencha o ID da sala e seu nome."); return; }
-            const gameRef = doc(db, gamesCollectionPath, joinId);
-            const gameSnap = await getDoc(gameRef);
+            if (!joinId || !playerName) { 
+                lobbyStatusEl.textContent = "Preencha o ID da sala e seu nome.";
+                return;
+            }
 
-            if (gameSnap.exists() && gameSnap.data().players.player2.name === "Aguardando...") {
-                gameId = joinId;
-                localPlayerId = 'player2';
-                await updateDoc(gameRef, {
-                    'players.player2.name': playerName,
-                    'statusMessage': `${gameSnap.data().players.player1.name} começa o jogo!`
-                });
-                listenToGameChanges(joinId);
-            } else { alert("Sala não encontrada ou já está cheia!"); }
+            lobbyStatusEl.textContent = 'Entrando na sala...';
+            const gameRef = doc(db, gamesCollectionPath, joinId);
+            
+            try {
+                const gameSnap = await getDoc(gameRef);
+
+                if (gameSnap.exists() && gameSnap.data().players.player2.name === "Aguardando...") {
+                    gameId = joinId;
+                    localPlayerId = 'player2';
+                    await updateDoc(gameRef, {
+                        'players.player2.name': playerName,
+                        'statusMessage': `${gameSnap.data().players.player1.name} começa o jogo!`
+                    });
+                    listenToGameChanges(joinId);
+                } else { 
+                    lobbyStatusEl.textContent = "Sala não encontrada ou já está cheia!";
+                }
+            } catch (error) {
+                console.error("Erro ao entrar na sala:", error);
+                lobbyStatusEl.textContent = 'Erro ao entrar na sala. Verifique o ID.';
+            }
         });
         
         function listenToGameChanges(id) {
@@ -796,8 +824,8 @@
 
                 } else { 
                     if(localPlayerId === 'player2') {
-                        alert("A sala foi fechada pelo anfitrião.");
-                        window.location.reload();
+                        lobbyStatusEl.textContent = "A sala foi fechada pelo anfitrião.";
+                        setTimeout(() => window.location.reload(), 3000);
                     }
                 }
             });
@@ -816,4 +844,5 @@
     </script>
 </body>
 </html>
+
 
