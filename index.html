@@ -509,7 +509,12 @@
             return {
                 gameId, gameMode: mode, turn: 1, phase: 'SELECAO_CARTAS',
                 statusMessage: `${player1Name} começa o jogo! Jogue no espaço destacado.`,
-                board: Array(3).fill(null).map(() => Array(3).fill(null)),
+                // CORREÇÃO: Usar um objeto de objetos para o tabuleiro
+                board: {
+                    '0': { '0': null, '1': null, '2': null },
+                    '1': { '0': null, '1': null, '2': null },
+                    '2': { '0': null, '1': null, '2': null }
+                },
                 players: {
                     player1: { name: player1Name, style: 'moderno', points: 0, hand: baralhoModerno.splice(0, 12), chips: { '5': 3, '7': 2 } },
                     player2: { name: player2Name, style: 'extravagante', points: 0, hand: baralhoExtravagante.splice(0, 12), chips: { '5': 3, '7': 2 } }
@@ -590,5 +595,3 @@
     </script>
 </body>
 </html>
-
-
