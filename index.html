@@ -204,7 +204,7 @@
         const auth = getAuth(app);
 
         // CORREÇÃO: Caminho do banco de dados fixo para todos os jogadores
-        const gamesCollectionPath = `public_games/loft`;
+        const gamesCollectionPath = 'loft_games';
         
         // ===== CONSTANTES E DADOS DO JOGO =====
         const VALORES_CARTAS = {
@@ -596,11 +596,13 @@
                     localGameState = serverState;
                     const player2Joined = serverState.players.player2.name !== "Aguardando...";
                     
+                    // CORREÇÃO: A transição para o jogo SÓ acontece quando o player 2 entra.
                     if (lobbyEl.className.indexOf('hidden') === -1 && player2Joined) {
                         lobbyEl.classList.add('hidden');
                         gameContainerEl.classList.remove('hidden');
                     }
                     
+                    // Atualiza a UI somente se a tela do jogo já estiver visível
                     if (gameContainerEl.className.indexOf('hidden') === -1) {
                         updateUI();
                     }
