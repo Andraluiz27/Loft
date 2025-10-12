@@ -306,7 +306,7 @@
             playerHandEl.innerHTML = '';
             player.hand.forEach(card => {
                 const cardEl = document.createElement('div');
-                cardEl.className = 'card w-32 h-24 md:w-40 md:h-28 cursor-pointer';
+                cardEl.className = 'card w-24 h-20 md:w-32 md:h-24 cursor-pointer';
                 cardEl.style.backgroundImage = `url('${card.imagem}')`;
                 if(selectedCard && selectedCard.id === card.id) {
                     cardEl.classList.add('selected');
@@ -323,8 +323,11 @@
                     cellEl.dataset.row = i;
                     cellEl.dataset.col = j;
                     const cellState = localGameState.board[i][j];
-                    if (cellState && cellState.card) {
+                     if (cellState && cellState.card) {
                          cellEl.style.backgroundImage = `url('${cellState.card.imagem}')`;
+                    } else if (localGameState.playsThisTurn[`${i},${j}`]) {
+                         cellEl.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+                         cellEl.textContent = "Ocupado";
                     }
                     if (localGameState.highlightedCell && localGameState.highlightedCell[0] === i && localGameState.highlightedCell[1] === j) {
                         cellEl.classList.add('highlight');
@@ -358,7 +361,7 @@
                 }
             }
             
-            nextTurnBtn.classList.toggle('hidden', localGameState.phase !== 'FIM_TURNO' || !myTurn);
+            nextTurnBtn.classList.toggle('hidden', localGameState.phase !== 'FIM_TURNO' || localGameState.turnStarter !== localPlayerId);
 
             if (localGameState.phase === 'FIM_JOGO') {
                 endGameModalEl.classList.remove('hidden');
@@ -412,21 +415,20 @@
                 
                 selectedCard = null;
 
-                const opponentId = localPlayerId === 'player1' ? 'player2' : 'player1';
-
                 if (localPlayerId === 'player1') {
                     gs.currentPlayerId = 'player2';
                     gs.statusMessage = `Vez de ${gs.players.player2.name} jogar no mesmo espaço.`;
                 } else {
                     gs.spacesPlayedInRow++;
-                    gs.currentPlayerId = 'player1'; 
-                    gs.highlightedCell = gs.spacesPlayedInRow < 3 ? [row, gs.spacesPlayedInRow] : null;
-
+                    gs.currentPlayerId = gs.turnStarter; // Quem começa a linha, começa o próximo espaço
+                    
                     if (gs.spacesPlayedInRow >= 3) {
                         gs.phase = 'SELECAO_FICHAS';
+                        gs.highlightedCell = null;
                         gs.statusMessage = "Fase de Fichas! Adicione fichas se desejar.";
                     } else {
-                        gs.statusMessage = `Vez de ${gs.players.player1.name} jogar no próximo espaço.`;
+                        gs.highlightedCell = [gs.currentRow, gs.spacesPlayedInRow];
+                        gs.statusMessage = `Vez de ${gs.players[gs.currentPlayerId].name} jogar no próximo espaço.`;
                     }
                 }
             } else if (gs.phase === 'SELECAO_FICHAS') {
@@ -457,7 +459,7 @@
             if (gs.gameMode === 'cpu') { 
                 localGameState = gs; 
                 updateUI(); 
-                if (gs.currentPlayerId === 'player2') {
+                if (gs.currentPlayerId === 'player2' && gs.phase === 'SELECAO_CARTAS') {
                     setTimeout(() => runCpuTurn(gs), 1000);
                 }
             } else { await updateFirestoreState(gs); }
@@ -477,22 +479,33 @@
              gs.statusMessage = "Você confirmou. Aguardando oponente...";
 
              if (gs.gameMode === 'cpu') { 
-                gs.confirmations.player2 = true; // CPU confirma imediatamente
+                // CPU adiciona fichas e confirma
+                const cpu = gs.players.player2;
+                for(let col=0; col<3; col++){
+                    const play = gs.playsThisTurn[`${gs.currentRow},${col}`];
+                    if(play?.player2){
+                        const cardVal = play.player2.card.valor;
+                        if(cardVal > 30 && cpu.chips[7] > 0){
+                            play.player2.chip = 7;
+                            cpu.chips[7]--;
+                        } else if (cardVal > 20 && cpu.chips[5] > 0){
+                            play.player2.chip = 5;
+                            cpu.chips[5]--;
+                        }
+                    }
+                }
+                gs.confirmations.player2 = true;
                 localGameState = gs;
                 updateUI();
-                await resolveTurn();
+                await startRowResolution();
              } else { 
-                const bothConfirmed = gs.confirmations.player1 && gs.confirmations.player2;
-                if (bothConfirmed) {
-                    gs.statusMessage = "Ambos confirmaram! Revelando resultados...";
-                }
                 await updateFirestoreState(gs);
              }
         });
 
         document.getElementById('next-turn-btn').addEventListener('click', async () => {
             let gs = JSON.parse(JSON.stringify(localGameState));
-            if(gs.phase !== 'FIM_TURNO' || gs.currentPlayerId !== localPlayerId) return;
+            if(gs.phase !== 'FIM_TURNO' || gs.turnStarter !== localPlayerId) return;
             
             prepareNextTurn(gs);
             
@@ -506,52 +519,59 @@
 
         // ===== LÓGICA DE TURNO E PONTUAÇÃO =====
 
-        async function resolveTurn() {
+        async function startRowResolution() {
             let gs = JSON.parse(JSON.stringify(localGameState));
             gs.phase = 'REVELACAO';
+            gs.statusMessage = `Revelando linha ${gs.currentRow + 1}...`;
+            if (gs.gameMode === 'online') await updateFirestoreState(gs); else { localGameState = gs; updateUI(); }
+            await delay(1000);
 
-            for(let row = 0; row < 3; row++) {
-                gs.currentRow = row;
-                gs.statusMessage = `Revelando linha ${row + 1}...`;
+            // Revela as cartas da linha atual
+            for (let col = 0; col < 3; col++) {
+                const playKey = `${gs.currentRow},${col}`;
+                const play = gs.playsThisTurn[playKey];
+                if (!play || !play.player1 || !play.player2) continue;
+
+                const p1Play = play.player1;
+                const p2Play = play.player2;
+                const p1Value = p1Play.card.valor + p1Play.chip;
+                const p2Value = p2Play.card.valor + p2Play.chip;
+                
+                let winnerCard;
+                if (p1Value > p2Value) winnerCard = p1Play.card;
+                else if (p2Value > p1Value) winnerCard = p2Play.card;
+                else winnerCard = p1Play.card; // Empate mantém a carta do P1 por padrão
+                
+                gs.board[gs.currentRow][col] = { card: winnerCard };
                 if (gs.gameMode === 'online') await updateFirestoreState(gs); else { localGameState = gs; updateUI(); }
-                await delay(1000);
-
-                for (let col = 0; col < 3; col++) {
-                    const playKey = `${row},${col}`;
-                    const play = gs.playsThisTurn[playKey];
-                    if (!play || !play.player1 || !play.player2) continue;
-
-                    const p1Play = play.player1;
-                    const p2Play = play.player2;
-                    const p1Value = p1Play.card.valor + p1Play.chip;
-                    const p2Value = p2Play.card.valor + p2Play.chip;
-                    
-                    let winnerCard;
-                    if (p1Value > p2Value) winnerCard = p1Play.card;
-                    else if (p2Value > p1Value) winnerCard = p2Play.card;
-                    else winnerCard = p1Play.card; // Empate mantém a carta do P1 por padrão
-                    
-                    gs.board[row][col] = { card: winnerCard };
-                    if (gs.gameMode === 'online') await updateFirestoreState(gs); else { localGameState = gs; updateUI(); }
-                    await delay(1500);
-                }
+                await delay(1500);
             }
 
-            // Aplicar regras especiais e calcular pontos
-            gs = applySpecialRules(gs);
-            gs = calculateScores(gs);
-            
-            if (gs.turn >= TOTAL_TURNOS) {
-                gs.phase = 'FIM_JOGO';
-                const p1 = gs.players.player1;
-                const p2 = gs.players.player2;
-                if(p1.points > p2.points) gs.winner = `${p1.name} venceu!`;
-                else if (p2.points > p1.points) gs.winner = `${p2.name} venceu!`;
-                else gs.winner = "Empate!";
+            // Após revelar a linha, decide o que fazer
+            if (gs.currentRow >= 2) {
+                // Fim do turno, calcular pontos
+                gs = applySpecialRules(gs);
+                gs = calculateScores(gs);
+                
+                if (gs.turn >= TOTAL_TURNOS) {
+                    gs.phase = 'FIM_JOGO';
+                    const p1 = gs.players.player1;
+                    const p2 = gs.players.player2;
+                    if(p1.points > p2.points) gs.winner = `${p1.name} venceu!`;
+                    else if (p2.points > p1.points) gs.winner = `${p2.name} venceu!`;
+                    else gs.winner = "Empate!";
+                } else {
+                    gs.phase = 'FIM_TURNO';
+                    gs.statusMessage = `Turno ${gs.turn} finalizado! Clique em "Próximo Turno".`;
+                }
             } else {
-                gs.phase = 'FIM_TURNO';
-                gs.statusMessage = `Turno ${gs.turn} finalizado! Clique em "Próximo Turno".`;
-                gs.currentPlayerId = gs.turnStarter; // Quem começou o turno clica
+                // Prepara para a próxima linha
+                gs.currentRow++;
+                gs.spacesPlayedInRow = 0;
+                gs.confirmations = { player1: false, player2: false };
+                gs.highlightedCell = [gs.currentRow, 0];
+                gs.phase = 'SELECAO_CARTAS';
+                gs.statusMessage = `Prepare-se para a linha ${gs.currentRow + 1}. Vez de ${gs.players[gs.currentPlayerId].name}.`;
             }
 
             if (gs.gameMode === 'cpu') { localGameState = gs; updateUI(); } 
@@ -566,7 +586,6 @@
                     const cell1 = board[r][c]?.card;
                     const cell2 = board[r][c+1]?.card;
                     if(cell1 && cell2 && cell1.tipo === 'Sofa' && cell2.tipo === 'Sofa' && cell1.dono !== cell2.dono){
-                        // Anula o segundo sofá encontrado (o que foi revelado depois)
                         board[r][c+1] = null;
                     }
                 }
@@ -600,13 +619,11 @@
             if (p2Cards > p1Cards) p2TurnPoints += 5;
 
             // 2. Bônus de Organização
-            // Mesa de Centro ou Tapete no centro
             const centerCard = board[1][1]?.card;
             if(centerCard && (centerCard.tipo === 'Mesa de Centro' || centerCard.tipo === 'Tapete')) {
                 if (centerCard.dono === 'moderno') p1TurnPoints += 2; else p2TurnPoints += 2;
             }
 
-            // Linhas completas
             const lines = [
                 [[0,0],[0,1],[0,2]], [[1,0],[1,1],[1,2]], [[2,0],[2,1],[2,2]], // Rows
                 [[0,0],[1,0],[2,0]], [[0,1],[1,1],[2,1]], [[0,2],[1,2],[2,2]], // Cols
@@ -624,7 +641,6 @@
                 }
             });
 
-            // Sequência Especial: Sofá -> Mesa -> TV
             for(let r=0; r<3; r++) { // Horizontal
                 const rowCards = [board[r][0]?.card, board[r][1]?.card, board[r][2]?.card];
                 if(rowCards.every(Boolean) && rowCards[0].tipo === 'Sofa' && rowCards[1].tipo === 'Mesa de Centro' && rowCards[2].tipo === 'TV') {
@@ -641,8 +657,6 @@
                     }
                 }
             }
-            
-            // TODO: Bônus de cantos e laterais (complexidade alta, adicionado o básico primeiro)
             
             gs.players.player1.points += p1TurnPoints;
             gs.players.player2.points += p2TurnPoints;
@@ -664,7 +678,6 @@
             gs.phase = 'SELECAO_CARTAS';
             gs.statusMessage = `Turno ${gs.turn}! Vez de ${gs.players[gs.currentPlayerId].name}.`;
 
-            // Comprar 9 cartas
             for(let i=0; i<9; i++) {
                 if(gs.decks.moderno.length > 0) gs.players.player1.hand.push(gs.decks.moderno.pop());
                 if(gs.decks.extravagante.length > 0) gs.players.player2.hand.push(gs.decks.extravagante.pop());
@@ -699,13 +712,15 @@
         
         // ===== LÓGICA DA CPU (Simplificada) =====
         function runCpuTurn(gs) {
-             if (gs.currentPlayerId !== 'player2') return;
+             if (gs.currentPlayerId !== 'player2' || gs.phase !== 'SELECAO_CARTAS') return;
 
-             if(gs.phase === 'SELECAO_CARTAS' && gs.highlightedCell) {
+             if(gs.highlightedCell) {
                  const cpu = gs.players.player2;
-                 const cardToPlay = cpu.hand[0]; // CPU joga a primeira carta
-                 selectedCard = cardToPlay;
-                 handleBoardCellClick(gs.highlightedCell[0], gs.highlightedCell[1]);
+                 const cardToPlay = cpu.hand[0]; 
+                 if(cardToPlay){
+                    selectedCard = cardToPlay;
+                    handleBoardCellClick(gs.highlightedCell[0], gs.highlightedCell[1]);
+                 }
              }
         }
         
@@ -748,18 +763,16 @@
             if (gameSnap.exists() && gameSnap.data().players.player2.name === "Aguardando...") {
                 gameId = joinId;
                 localPlayerId = 'player2';
-                let gameData = gameSnap.data();
-                gameData.players.player2.name = playerName;
-                gameData.statusMessage = `${gameData.players.player1.name} começa o jogo!`;
                 await updateDoc(gameRef, {
                     'players.player2.name': playerName,
-                    'statusMessage': gameData.statusMessage
+                    'statusMessage': `${gameSnap.data().players.player1.name} começa o jogo!`
                 });
                 listenToGameChanges(joinId);
             } else { alert("Sala não encontrada ou já está cheia!"); }
         });
         
         function listenToGameChanges(id) {
+            if (unsubscribe) unsubscribe();
             unsubscribe = onSnapshot(doc(db, gamesCollectionPath, id), async (doc) => {
                 if (doc.exists()) {
                     const serverState = doc.data();
@@ -776,10 +789,9 @@
                         updateUI();
                     }
 
-                    // Se ambos confirmaram as fichas, apenas o P1 inicia a resolução do turno
                     const bothConfirmed = serverState.confirmations.player1 && serverState.confirmations.player2;
                     if(wasConfirmationPhase && bothConfirmed && localPlayerId === 'player1') {
-                         await resolveTurn();
+                         await startRowResolution();
                     }
 
                 } else { 
@@ -804,3 +816,4 @@
     </script>
 </body>
 </html>
+
