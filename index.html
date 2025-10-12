@@ -98,6 +98,16 @@
         }
         .chip-player1 { background-color: #0ea5e9; } /* Estilo Moderno - sky-500 */
         .chip-player2 { background-color: #d946ef; } /* Estilo Extravagante - fuchsia-500 */
+
+        /* Animações da Tela de Embate */
+        @keyframes slideInFromLeft { from { transform: translateX(-100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @keyframes slideInFromRight { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes winnerPulse { 0%, 100% { transform: scale(1); box-shadow: 0 0 20px #facc15; } 50% { transform: scale(1.05); box-shadow: 0 0 35px #facc15; } }
+
+        .clash-card-container { transition: filter 0.5s ease-in-out, transform 0.5s ease-in-out; }
+        .is-loser { filter: brightness(0.4); transform: scale(0.95); }
+        .is-winner { animation: winnerPulse 1.5s infinite; }
     </style>
 </head>
 <body class="p-4 md:p-6">
@@ -209,6 +219,33 @@
         </div>
     </div>
 
+    <!-- Modal de Embate -->
+    <div id="clash-modal" class="hidden modal-overlay backdrop-blur-sm">
+        <div class="w-full max-w-4xl flex justify-around items-center gap-4 p-4">
+            <!-- Carta do Jogador 1 -->
+            <div id="clash-p1-container" class="clash-card-container flex flex-col items-center gap-2" style="animation: slideInFromLeft 0.5s forwards;">
+                <h3 id="clash-p1-name" class="text-2xl font-bold text-sky-400"></h3>
+                <div id="clash-p1-card" class="w-48 h-32 md:w-64 md:h-48 rounded-lg" style="background-size: cover; background-position: center;"></div>
+                <div class="text-center">
+                    <p class="text-lg">Carta: <span id="clash-p1-card-value"></span> + Ficha: <span id="clash-p1-chip-value"></span></p>
+                    <p class="text-2xl font-bold">Total: <span id="clash-p1-total"></span></p>
+                </div>
+            </div>
+            
+            <p class="text-5xl font-black text-slate-400" style="animation: fadeIn 1s 0.5s forwards; opacity:0;">VS</p>
+
+            <!-- Carta do Jogador 2 -->
+            <div id="clash-p2-container" class="clash-card-container flex flex-col items-center gap-2" style="animation: slideInFromRight 0.5s forwards;">
+                <h3 id="clash-p2-name" class="text-2xl font-bold text-fuchsia-400"></h3>
+                <div id="clash-p2-card" class="w-48 h-32 md:w-64 md:h-48 rounded-lg" style="background-size: cover; background-position: center;"></div>
+                <div class="text-center">
+                    <p class="text-lg">Carta: <span id="clash-p2-card-value"></span> + Ficha: <span id="clash-p2-chip-value"></span></p>
+                    <p class="text-2xl font-bold">Total: <span id="clash-p2-total"></span></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
 
     <!-- ===== SCRIPT DO JOGO (JAVASCRIPT) ===== -->
     <script type="module">
@@ -261,6 +298,7 @@
         const statusMessageEl = document.getElementById('status-message');
         const boardEl = document.getElementById('board');
         const endGameModalEl = document.getElementById('end-game-modal');
+        const clashModalEl = document.getElementById('clash-modal');
 
         // ===== FUNÇÕES DE LÓGICA DO JOGO =====
         
@@ -367,7 +405,6 @@
                          cellEl.textContent = "Ocupado";
                     }
 
-                    // Lógica para mostrar indicadores de fichas
                     if (playData) {
                         const indicatorContainer = document.createElement('div');
                         indicatorContainer.className = 'chip-indicator-container';
@@ -488,7 +525,7 @@
                     }
                 }
             } else if (gs.phase === 'SELECAO_FICHAS') {
-                 if (gs.confirmations[localPlayerId]) return;
+                 if (gs.confirmations[localPlayerId] || localPlayerId !== gs.players.player1.id && localPlayerId !== gs.players.player2.id) return;
                  if (selectedChipValue === null) { 
                      statusMessageEl.textContent = "Selecione uma ficha primeiro!";
                      return; 
@@ -575,31 +612,74 @@
 
         // ===== LÓGICA DE TURNO E PONTUAÇÃO =====
 
+        async function showClashAnimation(p1Play, p2Play, p1Name, p2Name) {
+            const p1c = document.getElementById('clash-p1-container');
+            const p2c = document.getElementById('clash-p2-container');
+
+            // Resetar animações e classes
+            [p1c, p2c].forEach(el => {
+                el.classList.remove('is-winner', 'is-loser');
+                el.style.animation = 'none';
+                void el.offsetWidth; // Trigger reflow
+            });
+            p1c.style.animation = 'slideInFromLeft 0.5s forwards';
+            p2c.style.animation = 'slideInFromRight 0.5s forwards';
+
+            const p1Value = p1Play.card.valor + p1Play.chip;
+            const p2Value = p2Play.card.valor + p2Play.chip;
+
+            // Preencher dados
+            document.getElementById('clash-p1-name').textContent = p1Name;
+            document.getElementById('clash-p1-card').style.backgroundImage = `url('${p1Play.card.imagem}')`;
+            document.getElementById('clash-p1-card-value').textContent = p1Play.card.valor;
+            document.getElementById('clash-p1-chip-value').textContent = p1Play.chip;
+            document.getElementById('clash-p1-total').textContent = p1Value;
+
+            document.getElementById('clash-p2-name').textContent = p2Name;
+            document.getElementById('clash-p2-card').style.backgroundImage = `url('${p2Play.card.imagem}')`;
+            document.getElementById('clash-p2-card-value').textContent = p2Play.card.valor;
+            document.getElementById('clash-p2-chip-value').textContent = p2Play.chip;
+            document.getElementById('clash-p2-total').textContent = p2Value;
+            
+            clashModalEl.classList.remove('hidden');
+            await delay(1500); // Pausa para ver as cartas
+
+            // Animar vencedor/perdedor
+            if (p1Value > p2Value) {
+                p1c.classList.add('is-winner');
+                p2c.classList.add('is-loser');
+            } else if (p2Value > p1Value) {
+                p2c.classList.add('is-winner');
+                p1c.classList.add('is-loser');
+            }
+            
+            await delay(2500); // Pausa para ver o resultado
+            clashModalEl.classList.add('hidden');
+        }
+
         async function startRowResolution() {
             let gs = JSON.parse(JSON.stringify(localGameState));
             gs.phase = 'REVELACAO';
             gs.statusMessage = `Revelando linha ${gs.currentRow + 1}...`;
             if (gs.gameMode === 'online') await updateFirestoreState(gs); else { localGameState = gs; updateUI(); }
-            await delay(1000);
-
+            
             for (let col = 0; col < 3; col++) {
                 const playKey = `${gs.currentRow},${col}`;
                 const play = gs.playsThisTurn[playKey];
                 if (!play || !play.player1 || !play.player2) continue;
 
-                const p1Play = play.player1;
-                const p2Play = play.player2;
-                const p1Value = p1Play.card.valor + p1Play.chip;
-                const p2Value = p2Play.card.valor + p2Play.chip;
+                await showClashAnimation(play.player1, play.player2, gs.players.player1.name, gs.players.player2.name);
+
+                const p1Value = play.player1.card.valor + play.player1.chip;
+                const p2Value = play.player2.card.valor + play.player2.chip;
                 
                 let winnerCard;
-                if (p1Value > p2Value) winnerCard = p1Play.card;
-                else if (p2Value > p1Value) winnerCard = p2Play.card;
-                else winnerCard = p1Play.card;
+                if (p1Value > p2Value) winnerCard = play.player1.card;
+                else if (p2Value > p1Value) winnerCard = play.player2.card;
+                else winnerCard = play.player1.card;
                 
                 gs.board[gs.currentRow][col] = { card: winnerCard };
                 if (gs.gameMode === 'online') await updateFirestoreState(gs); else { localGameState = gs; updateUI(); }
-                await delay(1500);
             }
 
             if (gs.currentRow >= 2) {
