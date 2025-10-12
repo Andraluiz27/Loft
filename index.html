@@ -108,6 +108,19 @@
         }
         .chip-player1 { background-color: #0ea5e9; } /* Estilo Moderno - sky-500 */
         .chip-player2 { background-color: #d946ef; } /* Estilo Extravagante - fuchsia-500 */
+        .chip-inventory-item {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+            color: white;
+            border: 1px solid rgba(255,255,255,0.5);
+            box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+        }
 
         /* Animações da Tela de Embate */
         @keyframes slideInFromLeft { from { transform: translateX(-100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
@@ -124,6 +137,7 @@
 
     <!-- ===== LOBBY / TELA INICIAL ===== -->
     <div id="lobby" class="fixed inset-0 lobby-background flex items-center p-8">
+
         <div class="relative z-10 w-full max-w-md">
             <div class="bg-slate-900/70 backdrop-blur-sm p-8 rounded-lg shadow-2xl">
                 <div class="text-left mb-8">
@@ -171,7 +185,7 @@
                 <div id="opponent-panel" class="w-full bg-slate-800/80 backdrop-blur-sm p-3 rounded-lg border-2 border-transparent transition-all duration-300">
                     <div class="flex justify-between items-center">
                         <h2 id="opponent-name" class="text-xl font-bold text-fuchsia-400">Oponente (Extravagante)</h2>
-                        <p class="text-sm text-slate-400">Fichas: <span id="opponent-chips" class="font-semibold">3x[5], 2x[7]</span></p>
+                        <div class="text-sm text-slate-400 flex items-center gap-2">Fichas: <span id="opponent-chips" class="flex items-center gap-1"></span></div>
                     </div>
                 </div>
 
@@ -186,7 +200,7 @@
                 <div id="player-panel" class="w-full bg-slate-800/80 backdrop-blur-sm p-3 rounded-lg border-2 border-transparent transition-all duration-300">
                      <div class="flex justify-between items-center mb-2">
                         <h2 id="player-name" class="text-xl font-bold text-sky-400">Você (Moderno)</h2>
-                        <p class="text-sm text-slate-400">Fichas: <span id="player-chips" class="font-semibold">3x[5], 2x[7]</span></p>
+                        <div class="text-sm text-slate-400 flex items-center gap-2">Fichas: <span id="player-chips" class="flex items-center gap-1"></span></div>
                     </div>
                     <div id="player-hand" class="flex justify-center flex-wrap gap-4 min-h-[128px] items-center">
                         <!-- Cartas do jogador serão geradas aqui -->
@@ -368,6 +382,23 @@
         }
         
         // ===== RENDERIZAÇÃO DA UI =====
+        function renderChipInventory(containerId, chips, playerClass) {
+            const containerEl = document.getElementById(containerId);
+            containerEl.innerHTML = '';
+            for (let i = 0; i < chips[5]; i++) {
+                const chipEl = document.createElement('div');
+                chipEl.className = `chip-inventory-item ${playerClass}`;
+                chipEl.textContent = '5';
+                containerEl.appendChild(chipEl);
+            }
+            for (let i = 0; i < chips[7]; i++) {
+                const chipEl = document.createElement('div');
+                chipEl.className = `chip-inventory-item ${playerClass}`;
+                chipEl.textContent = '7';
+                containerEl.appendChild(chipEl);
+            }
+        }
+
 
         function updateUI() {
             if (!localGameState || !localGameState.players) return;
@@ -457,10 +488,8 @@
                 }
             }
             
-            const playerChipsEl = document.getElementById('player-chips');
-            playerChipsEl.textContent = `${player.chips[5]}x[5], ${player.chips[7]}x[7]`;
-            const opponentChipsEl = document.getElementById('opponent-chips');
-            opponentChipsEl.textContent = `${opponent.chips[5]}x[5], ${opponent.chips[7]}x[7]`;
+            renderChipInventory('player-chips', player.chips, 'chip-player1');
+            renderChipInventory('opponent-chips', opponent.chips, 'chip-player2');
 
             const chipPanel = document.getElementById('chip-panel');
             const nextTurnBtn = document.getElementById('next-turn-btn');
@@ -1111,5 +1140,4 @@
     </script>
 </body>
 </html>
-
 
