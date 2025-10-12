@@ -278,6 +278,9 @@
         function updateUI() {
             if (!localGameState || !localGameState.players) return;
             
+            // Se ainda não temos um ID de jogador local, não podemos renderizar
+            if (!localPlayerId) return;
+
             const player = localGameState.players[localPlayerId];
             const opponentId = localPlayerId === 'player1' ? 'player2' : 'player1';
             const opponent = localGameState.players[opponentId];
@@ -372,7 +375,8 @@
         }
 
         async function handleBoardCellClick(row, col) {
-            const gs = JSON.parse(JSON.stringify(localGameState)); // Deep copy to avoid mutation issues
+            // Usamos uma cópia para evitar modificar o estado local diretamente antes de enviar ao Firestore
+            const gs = JSON.parse(JSON.stringify(localGameState));
             if (gs.currentPlayerId !== localPlayerId) return;
 
             if (gs.phase === 'SELECAO_CARTAS') {
@@ -477,7 +481,7 @@
                 
                 const gs = JSON.parse(JSON.stringify(localGameState));
                 const play = gs.playsThisRow[`${rowIndex},${colIndex}`];
-                if(play) {
+                if(play && play.player1.card && play.player2.card) { // Checa se ambos os jogadores jogaram
                     const p1Card = play.player1.card;
                     const p2Card = play.player2.card;
                     p1Card.valor_final = p1Card.valor + play.player1.chip;
@@ -508,8 +512,7 @@
             const baralhoExtravagante = shuffle(criar_baralho('extravagante'));
             return {
                 gameId, gameMode: mode, turn: 1, phase: 'SELECAO_CARTAS',
-                statusMessage: `${player1Name} começa o jogo! Jogue no espaço destacado.`,
-                // CORREÇÃO: Usar um objeto de objetos para o tabuleiro
+                statusMessage: `Aguardando oponente...`, // Mensagem inicial
                 board: {
                     '0': { '0': null, '1': null, '2': null },
                     '1': { '0': null, '1': null, '2': null },
@@ -529,6 +532,7 @@
             gameId = 'local_cpu_game';
             localPlayerId = 'player1';
             localGameState = createInitialGameState(playerName, "CPU", "cpu");
+            localGameState.statusMessage = `${playerName} começa o jogo! Jogue no espaço destacado.`;
             lobbyEl.classList.add('hidden');
             gameContainerEl.classList.remove('hidden');
             updateUI();
@@ -542,8 +546,21 @@
              localPlayerId = 'player1';
              const initialState = createInitialGameState(playerName, "Aguardando...", "online");
              await setDoc(doc(db, gamesCollectionPath, gameId), initialState);
+
+             // Mostra o ID e a mensagem de espera
              document.getElementById('game-id-display').textContent = gameId;
              document.getElementById('game-id-section').classList.remove('hidden');
+             
+             // Desabilita botões para evitar ações duplicadas
+             document.getElementById('create-game-btn').disabled = true;
+             document.getElementById('join-game-btn').disabled = true;
+             
+             // Adiciona uma mensagem de "esperando" no lobby
+             const waitingMsg = document.createElement('p');
+             waitingMsg.textContent = 'Aguardando oponente...';
+             waitingMsg.className = 'text-teal-300 mt-4 animate-pulse';
+             document.getElementById('online-options').appendChild(waitingMsg);
+
              listenToGameChanges(gameId);
         });
 
@@ -553,11 +570,14 @@
             if (!joinId || !playerName) { alert("Preencha o ID da sala e seu nome."); return; }
             const gameRef = doc(db, gamesCollectionPath, joinId);
             const gameSnap = await getDoc(gameRef);
+
             if (gameSnap.exists() && gameSnap.data().players.player2.name === "Aguardando...") {
                 gameId = joinId;
                 localPlayerId = 'player2';
                 let gameData = gameSnap.data();
                 gameData.players.player2.name = playerName;
+                // Atualiza a mensagem de status para o início do jogo
+                gameData.statusMessage = `${gameData.players.player1.name} começa o jogo!`;
                 await setDoc(gameRef, gameData);
                 listenToGameChanges(gameId);
             } else { alert("Sala não encontrada ou já está cheia!"); }
@@ -568,16 +588,27 @@
                 if (doc.exists()) {
                     const serverState = doc.data();
                     localGameState = serverState;
-                    if(!gameContainerEl.classList.contains('hidden')) {
-                        updateUI();
-                    } else {
+                    
+                    const player2Joined = serverState.players.player2.name !== "Aguardando...";
+                    
+                    // Se o lobby ainda estiver visível E o jogador 2 entrou, troque para a tela do jogo
+                    if (!lobbyEl.classList.contains('hidden') && player2Joined) {
                         lobbyEl.classList.add('hidden');
                         gameContainerEl.classList.remove('hidden');
+                    }
+                    
+                    // A função updateUI será chamada para atualizar a tela (seja o jogo ou o lobby)
+                    // No caso do lobby, ela não fará nada, mas no jogo, irá renderizar o estado.
+                    if (!gameContainerEl.classList.contains('hidden')) {
                         updateUI();
                     }
+
                 } else { 
-                    alert("A sala foi fechada pelo anfitrião.");
-                    window.location.reload();
+                    // Se o anfitrião sair, o documento é deletado.
+                    if(localPlayerId === 'player2') {
+                        alert("A sala foi fechada pelo anfitrião.");
+                        window.location.reload();
+                    }
                 }
             });
         }
@@ -587,6 +618,7 @@
         });
 
         window.addEventListener('beforeunload', () => {
+            // Apenas o anfitrião (player1) deleta o jogo ao sair
             if(localGameState.gameMode === 'online' && localPlayerId === 'player1' && gameId) {
                 deleteDoc(doc(db, gamesCollectionPath, gameId));
             }
@@ -595,3 +627,4 @@
     </script>
 </body>
 </html>
+
