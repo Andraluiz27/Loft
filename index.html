@@ -133,6 +133,15 @@
         .clash-card-container { transition: filter 0.5s ease-in-out, transform 0.5s ease-in-out; }
         .is-loser { filter: brightness(0.4); transform: scale(0.95); }
         .is-winner { animation: winnerPulse 1.5s infinite; }
+
+        /* ▼▼▼ COLE O NOVO CÓDIGO CSS AQUI ▼▼▼ */
+        /* ===== NOVOS ESTILOS POR TEMA ===== */
+        .chip-moderno { background-color: #0ea5e9; } /* sky-500 */
+        .chip-extravagante { background-color: #d946ef; } /* fuchsia-500 */
+
+        .border-moderno { border-color: #38bdf8; } /* sky-400 */
+        .border-extravagante { border-color: #e879f9; } /* fuchsia-400 */
+        
     </style>
 </head>
 <body>
@@ -384,18 +393,21 @@
         }
         
         // ===== RENDERIZAÇÃO DA UI =====
-        function renderChipInventory(containerId, chips, playerClass) {
+        // CÓDIGO NOVO - COLE ESTE NO LUGAR DO ANTIGO
+        function renderChipInventory(containerId, chips, playerStyle) { // Modificado
             const containerEl = document.getElementById(containerId);
             containerEl.innerHTML = '';
+            const chipClass = `chip-${playerStyle}`; // Dinâmico: chip-moderno ou chip-extravagante
+        
             for (let i = 0; i < chips[5]; i++) {
                 const chipEl = document.createElement('div');
-                chipEl.className = `chip-inventory-item ${playerClass}`;
+                chipEl.className = `chip-inventory-item ${chipClass}`; // Usa a classe dinâmica
                 chipEl.textContent = '5';
                 containerEl.appendChild(chipEl);
             }
             for (let i = 0; i < chips[7]; i++) {
                 const chipEl = document.createElement('div');
-                chipEl.className = `chip-inventory-item ${playerClass}`;
+                chipEl.className = `chip-inventory-item ${chipClass}`; // Usa a classe dinâmica
                 chipEl.textContent = '7';
                 containerEl.appendChild(chipEl);
             }
@@ -408,26 +420,41 @@
             const player = localGameState.players[localPlayerId];
             const opponentId = localPlayerId === 'player1' ? 'player2' : 'player1';
             const opponent = localGameState.players[opponentId];
+
+            // --- LÓGICA DE CORES E ESTILOS (NOVO) ---
+            const playerColorClass = `text-${player.style === 'moderno' ? 'sky' : 'fuchsia'}-400`;
+            const opponentColorClass = `text-${opponent.style === 'moderno' ? 'sky' : 'fuchsia'}-400`;
             
-            // --- ATUALIZAÇÃO DOS NOMES E ESTILOS (NOVO) ---
+            const playerBorderClass = `border-${player.style}`;
+            const opponentBorderClass = `border-${opponent.style}`;
+            // --- FIM DA LÓGICA DE CORES ---
+
             const capitalize = s => s.charAt(0).toUpperCase() + s.slice(1);
-            document.getElementById('player-name').textContent = `${player.name} (${capitalize(player.style)})`;
-            document.getElementById('opponent-name').textContent = `${opponent.name} (${capitalize(opponent.style)})`;
-            // --- FIM DA ATUALIZAÇÃO ---
+            document.getElementById('player-name').innerHTML = `<h2 id="player-name" class="text-xl font-bold ${playerColorClass}">${player.name} (${capitalize(player.style)})</h2>`;
+            document.getElementById('opponent-name').innerHTML = `<h2 id="opponent-name" class="text-xl font-bold ${opponentColorClass}">${opponent.name} (${capitalize(opponent.style)})</h2>`;
             
-            // ATUALIZAÇÃO DA PONTUAÇÃO
             const scoreDisplay = document.getElementById('score-display');
             scoreDisplay.innerHTML = `
-                <p class="text-lg">${player.name}: <strong class="text-2xl text-sky-400">${player.points}</strong> <span class="text-base text-slate-400">(+${player.lastTurnPoints})</span></p>
-                <p class="text-lg">${opponent.name}: <strong class="text-2xl text-fuchsia-400">${opponent.points}</strong> <span class="text-base text-slate-400">(+${opponent.lastTurnPoints})</span></p>
+                <p class="text-lg">${player.name}: <strong class="text-2xl ${playerColorClass}">${player.points}</strong> <span class="text-base text-slate-400">(+${player.lastTurnPoints})</span></p>
+                <p class="text-lg">${opponent.name}: <strong class="text-2xl ${opponentColorClass}">${opponent.points}</strong> <span class="text-base text-slate-400">(+${opponent.lastTurnPoints})</span></p>
             `;
 
             document.getElementById('current-turn').textContent = localGameState.turn;
             statusMessageEl.textContent = localGameState.statusMessage;
             
             const myTurn = localGameState.currentPlayerId === localPlayerId;
-            document.getElementById('player-panel').style.borderColor = myTurn ? '#38bdf8' : 'transparent';
-            document.getElementById('opponent-panel').style.borderColor = !myTurn ? '#e879f9' : 'transparent';
+            const playerPanel = document.getElementById('player-panel');
+            const opponentPanel = document.getElementById('opponent-panel');
+            
+            // Remove classes antigas e aplica as novas
+            playerPanel.classList.remove('border-moderno', 'border-extravagante');
+            opponentPanel.classList.remove('border-moderno', 'border-extravagante');
+            playerPanel.classList.add(playerBorderClass);
+            opponentPanel.classList.add(opponentBorderClass);
+
+            // Controla a opacidade da borda para indicar o turno
+            playerPanel.style.borderColor = myTurn ? '' : 'transparent';
+            opponentPanel.style.borderColor = !myTurn ? '' : 'transparent';
             
             const playerHandEl = document.getElementById('player-hand');
             playerHandEl.innerHTML = '';
@@ -469,13 +496,17 @@
 
                         if (playData.player1?.chip > 0) {
                             const p1Chip = document.createElement('div');
-                            p1Chip.className = 'chip-indicator chip-player1';
+                            // CORRIGIDO: Usa o estilo do player1
+                            const p1Style = localGameState.players.player1.style;
+                            p1Chip.className = `chip-indicator chip-${p1Style}`; 
                             p1Chip.textContent = playData.player1.chip;
                             indicatorContainer.appendChild(p1Chip);
                         }
                         if (playData.player2?.chip > 0) {
                             const p2Chip = document.createElement('div');
-                            p2Chip.className = 'chip-indicator chip-player2';
+                            // CORRIGIDO: Usa o estilo do player2
+                            const p2Style = localGameState.players.player2.style;
+                            p2Chip.className = `chip-indicator chip-${p2Style}`;
                             p2Chip.textContent = playData.player2.chip;
                             indicatorContainer.appendChild(p2Chip);
                         }
@@ -495,9 +526,11 @@
                 }
             }
             
-            renderChipInventory('player-chips', player.chips, 'chip-player1');
-            renderChipInventory('opponent-chips', opponent.chips, 'chip-player2');
+            // CORRIGIDO: Passa o ESTILO para a função
+            renderChipInventory('player-chips', player.chips, player.style);
+            renderChipInventory('opponent-chips', opponent.chips, opponent.style);
 
+            // O resto da função permanece igual...
             const chipPanel = document.getElementById('chip-panel');
             const nextTurnBtn = document.getElementById('next-turn-btn');
             const confirmChipsBtn = document.getElementById('confirm-chips-btn');
@@ -532,12 +565,10 @@
                 nextTurnBtn.classList.add('hidden');
             }
             
-            // --- LÓGICA DO BOTÃO DE TROCA (REVISADA) ---
             const canSwap = localGameState.phase === 'TROCA_RELOGIO' && 
                             localGameState.clockPowerPlayer === localPlayerId && 
                             localGameState.swapSelection?.length === 2;
             confirmSwapBtn.classList.toggle('hidden', !canSwap);
-            // --- FIM DA LÓGICA DO BOTÃO ---
 
 
             if (localGameState.phase === 'FIM_JOGO') {
@@ -1171,5 +1202,6 @@
     </script>
 </body>
 </html>
+
 
 
