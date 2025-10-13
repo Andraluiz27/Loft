@@ -697,14 +697,20 @@
                 else { gs.statusMessage = "Poder do relógio! Selecione a primeira carta para a troca."; }
             }
             
-            if (gs.gameMode === 'cpu') { 
-                localGameState = gs; 
-                updateUI(); 
-                if (gs.currentPlayerId === 'player2' && gs.phase === 'SELECAO_CARTAS') {
-                    setTimeout(() => runCpuTurn(gs), 1000);
-                }
-            } else { await updateFirestoreState(gs); }
-        }
+           // --- INÍCIO DA CORREÇÃO ---
+            // Atualiza o estado local e a UI imediatamente para uma resposta rápida
+            localGameState = gs;
+            updateUI();
+
+            // Se for um jogo online, propaga a mudança para o Firestore
+            if (gs.gameMode === 'online') {
+                await updateFirestoreState(gs);
+            }
+            // Se for um jogo contra a CPU, verifica se é a vez dela jogar
+            else if (gs.gameMode === 'cpu' && gs.currentPlayerId === 'player2' && gs.phase === 'SELECAO_CARTAS') {
+                setTimeout(() => runCpuTurn(gs), 1000);
+            }
+            // --- FIM DA CORREÇÃO ---
         
         function handleChipClick(value, buttonEl) {
              selectedChipValue = value;
@@ -1310,6 +1316,7 @@
     </script>
 </body>
 </html>
+
 
 
 
