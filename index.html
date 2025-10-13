@@ -287,6 +287,31 @@
         </div>
     </div>
 
+    <div id="score-animation-modal" class="hidden modal-overlay backdrop-blur-sm">
+        <div class="w-full max-w-4xl flex justify-around items-start gap-8 p-4 text-center">
+            <div id="score-anim-p1-container" class="flex flex-col items-center gap-2 p-6 bg-slate-900/80 rounded-lg w-1/2">
+                <h3 id="score-anim-p1-name" class="text-2xl font-bold"></h3>
+                <p class="text-slate-400 text-lg">Placar Anterior</p>
+                <p id="score-anim-p1-old" class="text-4xl font-light">0</p>
+                <p class="text-teal-400 text-xl font-semibold mt-4">Pontos do Turno</p>
+                <p id="score-anim-p1-turn" class="text-5xl font-bold text-teal-300">0</p>
+                <div class="w-full h-px bg-slate-700 my-4"></div>
+                <p class="text-slate-300 text-lg">Novo Total</p>
+                <p id="score-anim-p1-new" class="text-6xl font-black">0</p>
+            </div>
+            
+            <div id="score-anim-p2-container" class="flex flex-col items-center gap-2 p-6 bg-slate-900/80 rounded-lg w-1/2">
+                <h3 id="score-anim-p2-name" class="text-2xl font-bold"></h3>
+                <p class="text-slate-400 text-lg">Placar Anterior</p>
+                <p id="score-anim-p2-old" class="text-4xl font-light">0</p>
+                <p class="text-teal-400 text-xl font-semibold mt-4">Pontos do Turno</p>
+                <p id="score-anim-p2-turn" class="text-5xl font-bold text-teal-300">0</p>
+                <div class="w-full h-px bg-slate-700 my-4"></div>
+                <p class="text-slate-300 text-lg">Novo Total</p>
+                <p id="score-anim-p2-new" class="text-6xl font-black">0</p>
+            </div>
+        </div>
+    </div>
 
     <!-- ===== SCRIPT DO JOGO (JAVASCRIPT) ===== -->
     <script type="module">
@@ -798,6 +823,68 @@
             }, 1500);
         }
 
+        // ▼▼▼ COLE AS 2 NOVAS FUNÇÕES AQUI ▼▼▼
+        function animateCounter(element, start, end, duration) {
+            return new Promise(resolve => {
+                let startTime = null;
+                const step = (currentTime) => {
+                    if (!startTime) startTime = currentTime;
+                    const progress = Math.min((currentTime - startTime) / duration, 1);
+                    const currentNum = Math.floor(progress * (end - start) + start);
+                    element.textContent = currentNum;
+                    if (progress < 1) {
+                        window.requestAnimationFrame(step);
+                    } else {
+                        resolve();
+                    }
+                };
+                window.requestAnimationFrame(step);
+            });
+        }
+
+        async function showScoreAnimation(gs) {
+            const p1 = gs.players.player1;
+            const p2 = gs.players.player2;
+            
+            const p1OldScore = p1.points;
+            const p2OldScore = p2.points;
+
+            calculateScores(gs); // Calcula e atualiza os pontos e lastTurnPoints em gs
+
+            const scoreModal = document.getElementById('score-animation-modal');
+            
+            // Popula nomes e cores
+            const p1NameEl = document.getElementById('score-anim-p1-name');
+            const p2NameEl = document.getElementById('score-anim-p2-name');
+            p1NameEl.textContent = p1.name;
+            p2NameEl.textContent = p2.name;
+            p1NameEl.className = `text-2xl font-bold text-${p1.style === 'moderno' ? 'sky' : 'fuchsia'}-400`;
+            p2NameEl.className = `text-2xl font-bold text-${p2.style === 'moderno' ? 'sky' : 'fuchsia'}-400`;
+
+            // Popula placares
+            document.getElementById('score-anim-p1-old').textContent = p1OldScore;
+            document.getElementById('score-anim-p2-old').textContent = p2OldScore;
+            document.getElementById('score-anim-p1-turn').textContent = `+${p1.lastTurnPoints}`;
+            document.getElementById('score-anim-p2-turn').textContent = `+${p2.lastTurnPoints}`;
+            const p1NewEl = document.getElementById('score-anim-p1-new');
+            const p2NewEl = document.getElementById('score-anim-p2-new');
+            p1NewEl.textContent = p1OldScore; // Inicia com o valor antigo
+            p2NewEl.textContent = p2OldScore; // Inicia com o valor antigo
+
+            scoreModal.classList.remove('hidden');
+            await delay(500);
+
+            // Inicia a animação de contagem
+            await Promise.all([
+                animateCounter(p1NewEl, p1OldScore, p1.points, 1500),
+                animateCounter(p2NewEl, p2OldScore, p2.points, 1500)
+            ]);
+
+            await delay(2500); // Pausa para o jogador ver o resultado
+            scoreModal.classList.add('hidden');
+        }
+        // ▲▲▲ FIM DAS 2 NOVAS FUNÇÕES ▲▲▲
+        
         async function startRowResolution() {
             let gs = JSON.parse(JSON.stringify(localGameState));
             gs.phase = 'REVELACAO';
@@ -885,9 +972,12 @@
             }
         }
 
+       // ►►► SUBSTITUA A FUNÇÃO ANTIGA POR ESTA ◄◄◄
         async function proceedToScoring(gs) {
-            gs = calculateScores(gs);
-                
+            // 1. Mostra a animação e calcula os scores
+            await showScoreAnimation(gs);
+
+            // 2. Verifica se o jogo terminou
             if (gs.turn >= TOTAL_TURNOS) {
                 gs.phase = 'FIM_JOGO';
                 const p1 = gs.players.player1;
@@ -897,11 +987,19 @@
                 else gs.winner = "Empate!";
             } else {
                 gs.phase = 'FIM_TURNO';
-                gs.statusMessage = `Turno ${gs.turn} finalizado! Clique em "Próximo Turno" para continuar.`;
+                gs.statusMessage = `Turno ${gs.turn} finalizado! Clique em "Prximo Turno" para continuar.`;
             }
 
-            if (gs.gameMode === 'cpu') { localGameState = gs; updateUI(); } 
-            else { await updateFirestoreState(gs); }
+            // 3. Atualiza o estado do jogo
+            if (gs.gameMode === 'cpu') { 
+                localGameState = gs; 
+                updateUI(); 
+            } else { 
+                // Apenas o player1 atualiza o estado para evitar conflitos
+                if (localPlayerId === 'player1') {
+                    await updateFirestoreState(gs);
+                }
+            }
         }
 
         function calculateScores(gs) {
@@ -1170,8 +1268,11 @@
                          startRowResolution();
                     }
                     
-                    if (wasSwapPhase && serverState.phase !== 'TROCA_RELOGIO' && localPlayerId === 'player1') {
-                        proceedToScoring(serverState);
+                    // ►►► SUBSTITUA O BLOCO IF ANTIGO POR ESTE ◄◄◄
+                    // Se a fase mudou para PONTUACAO, ambos os jogadores rodam a pontuação
+                    // O player1 será o responsável por atualizar o estado para FIM_TURNO depois
+                    if (serverState.phase === 'PONTUACAO' && localGameState.phase !== 'PONTUACAO') {
+                            proceedToScoring(serverState);
                     }
 
                     const bothNextTurnConfirmed = serverState.nextTurnConfirmations?.player1 && serverState.nextTurnConfirmations?.player2;
@@ -1209,6 +1310,7 @@
     </script>
 </body>
 </html>
+
 
 
 
