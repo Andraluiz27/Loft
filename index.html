@@ -997,9 +997,18 @@
             gs.players.player1.lastTurnPoints = 0;
             gs.players.player2.lastTurnPoints = 0;
 
+            // CORREÇÃO: Pega o estilo de cada jogador dinamicamente
+            const p1Style = gs.players.player1.style; // Ex: 'moderno' ou 'extravagante'
+            const p2Style = gs.players.player2.style; // Ex: 'extravagante' ou 'moderno'
+
             for(let i=0; i<9; i++) {
-                if(gs.decks.moderno.length > 0) gs.players.player1.hand.push(gs.decks.moderno.pop());
-                if(gs.decks.extravagante.length > 0) gs.players.player2.hand.push(gs.decks.extravagante.pop());
+                // Usa as variáveis de estilo para acessar o baralho correto
+                if(gs.decks[p1Style] && gs.decks[p1Style].length > 0) {
+                    gs.players.player1.hand.push(gs.decks[p1Style].pop());
+                }
+                if(gs.decks[p2Style] && gs.decks[p2Style].length > 0) {
+                    gs.players.player2.hand.push(gs.decks[p2Style].pop());
+                }
             }
 
             return gs;
@@ -1209,6 +1218,7 @@
     </script>
 </body>
 </html>
+
 
 
 
