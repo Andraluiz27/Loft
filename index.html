@@ -401,7 +401,6 @@
             }
         }
 
-
         function updateUI() {
             if (!localGameState || !localGameState.players) return;
             if (!localPlayerId) return;
@@ -409,6 +408,12 @@
             const player = localGameState.players[localPlayerId];
             const opponentId = localPlayerId === 'player1' ? 'player2' : 'player1';
             const opponent = localGameState.players[opponentId];
+            
+            // --- ATUALIZAÇÃO DOS NOMES E ESTILOS (NOVO) ---
+            const capitalize = s => s.charAt(0).toUpperCase() + s.slice(1);
+            document.getElementById('player-name').textContent = `${player.name} (${capitalize(player.style)})`;
+            document.getElementById('opponent-name').textContent = `${opponent.name} (${capitalize(opponent.style)})`;
+            // --- FIM DA ATUALIZAÇÃO ---
             
             // ATUALIZAÇÃO DA PONTUAÇÃO
             const scoreDisplay = document.getElementById('score-display');
@@ -527,8 +532,12 @@
                 nextTurnBtn.classList.add('hidden');
             }
             
-            const canSwap = localGameState.phase === 'TROCA_RELOGIO' && localGameState.clockPowerPlayer === localPlayerId && localGameState.swapSelection?.length === 2;
+            // --- LÓGICA DO BOTÃO DE TROCA (REVISADA) ---
+            const canSwap = localGameState.phase === 'TROCA_RELOGIO' && 
+                            localGameState.clockPowerPlayer === localPlayerId && 
+                            localGameState.swapSelection?.length === 2;
             confirmSwapBtn.classList.toggle('hidden', !canSwap);
+            // --- FIM DA LÓGICA DO BOTÃO ---
 
 
             if (localGameState.phase === 'FIM_JOGO') {
@@ -961,21 +970,40 @@
         // ===== INICIALIZAÇÃO DO JOGO =====
         
         function createInitialGameState(player1Name, player2Name, mode) {
-            const baralhoModerno = shuffle(criar_baralho_completo('moderno'));
-            const baralhoExtravagante = shuffle(criar_baralho_completo('extravagante'));
+            const baralhoModernoCompleto = criar_baralho_completo('moderno');
+            const baralhoExtravaganteCompleto = criar_baralho_completo('extravagante');
+
+            // --- LÓGICA DE SORTEIO ---
+            const p1SeraModerno = Math.random() < 0.5; // Sorteia o estilo do player 1
+            const p1Comeca = Math.random() < 0.5;      // Sorteia quem começa
+
+            const player1Style = p1SeraModerno ? 'moderno' : 'extravagante';
+            const player2Style = p1SeraModerno ? 'extravagante' : 'moderno';
+            
+            const player1Deck = p1SeraModerno ? baralhoModernoCompleto : baralhoExtravaganteCompleto;
+            const player2Deck = p1SeraModerno ? baralhoExtravaganteCompleto : baralhoModernoCompleto;
+
+            const baralhoP1 = shuffle([...player1Deck]);
+            const baralhoP2 = shuffle([...player2Deck]);
+            
+            const starterId = p1Comeca ? 'player1' : 'player2';
+            // --- FIM DA LÓGICA DE SORTEIO ---
+
             return {
                 gameId, gameMode: mode, turn: 1, phase: 'SELECAO_CARTAS',
                 board: createEmptyBoard(),
                 players: {
-                    player1: { name: player1Name, style: 'moderno', points: 0, hand: baralhoModerno.splice(0, 12), chips: { '5': 3, '7': 2 }, lastTurnPoints: 0 },
-                    player2: { name: player2Name, style: 'extravagante', points: 0, hand: baralhoExtravagante.splice(0, 12), chips: { '5': 3, '7': 2 }, lastTurnPoints: 0 }
+                    player1: { name: player1Name, style: player1Style, points: 0, hand: baralhoP1.splice(0, 12), chips: { '5': 3, '7': 2 }, lastTurnPoints: 0 },
+                    player2: { name: player2Name, style: player2Style, points: 0, hand: baralhoP2.splice(0, 12), chips: { '5': 3, '7': 2 }, lastTurnPoints: 0 }
                 },
                 decks: {
-                    moderno: baralhoModerno,
-                    extravagante: baralhoExtravagante
+                    // Os nomes das chaves agora refletem os estilos, não os baralhos fixos
+                    [player1Style]: baralhoP1,
+                    [player2Style]: baralhoP2
                 },
-                turnStarter: 'player1',
-                currentPlayerId: 'player1', highlightedCell: [0, 0], currentRow: 0,
+                turnStarter: starterId, // Usa o valor sorteado
+                currentPlayerId: starterId, // Usa o valor sorteado
+                highlightedCell: [0, 0], currentRow: 0,
                 spacesPlayedInRow: 0, playsThisTurn: {},
                 confirmations: { player1: false, player2: false },
                 nextTurnConfirmations: { player1: false, player2: false },
@@ -1143,4 +1171,5 @@
     </script>
 </body>
 </html>
+
 
