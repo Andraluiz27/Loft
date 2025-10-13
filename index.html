@@ -846,13 +846,21 @@
 
             if (gs.currentRow >= 2) {
                 let p1Clocks = 0, p2Clocks = 0;
+                // --- CÓDIGO CORRIGIDO ---
+                const p1Style = gs.players.player1.style; // Pega o estilo real do player 1
+
                 for(let r=0; r<3; r++) for(let c=0; c<3; c++) {
                     const card = gs.board[r][c]?.card;
                     if (card?.tipo === 'Relogio') {
-                        if (card.dono === 'moderno') p1Clocks++;
-                        else p2Clocks++;
+                        // Compara o dono da carta com o estilo do player 1
+                        if (card.dono === p1Style) {
+                            p1Clocks++;
+                        } else {
+                            p2Clocks++;
+                        }
                     }
                 }
+                // --- FIM DA CORREÇÃO ---
 
                 const p1HasPower = p1Clocks >= 2 && p2Clocks < 2;
                 const p2HasPower = p2Clocks >= 2 && p1Clocks < 2;
@@ -1202,6 +1210,7 @@
     </script>
 </body>
 </html>
+
 
 
 
