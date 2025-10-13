@@ -746,15 +746,14 @@
             
             gs.swapSelection = [];
             gs.clockPowerPlayer = null;
+            gs.phase = 'PONTUACAO'; // Muda para uma fase intermediária
             
             if (gs.gameMode === 'cpu') {
                 localGameState = gs;
                 proceedToScoring(gs);
             } else {
+                // Apenas atualiza o estado. O listener (onSnapshot) vai chamar a pontuação.
                 await updateFirestoreState(gs);
-                if(localPlayerId === 'player1') {
-                    proceedToScoring(gs);
-                }
             }
         });
 
@@ -1210,6 +1209,7 @@
     </script>
 </body>
 </html>
+
 
 
 
