@@ -142,6 +142,74 @@
         .border-moderno { border-color: #38bdf8; } /* sky-400 */
         .border-extravagante { border-color: #e879f9; } /* fuchsia-400 */
         
+        /* ▼▼▼ COMEÇO DO NOVO CÓDIGO CSS PARA O POP-UP AQUI ▼▼▼ */
+        .help-icon {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background-color: #0e7490; /* Cor ciano escura */
+            color: white;
+            font-size: 28px;
+            font-weight: bold;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            z-index: 999; /* Um pouco abaixo do modal para não conflitar */
+            border: 2px solid #67e8f9; /* Borda ciano clara */
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+            transition: transform 0.2s, background-color 0.2s;
+        }
+        .help-icon:hover {
+            transform: scale(1.1);
+            background-color: #0891b2; /* Ciano um pouco mais claro */
+        }
+        .popup-overlay {
+            display: none; /* Começa escondido */
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(15, 23, 42, 0.8); /* Cor de fundo slate-900 com opacidade */
+            backdrop-filter: blur(4px); /* Efeito de desfoque no fundo */
+            align-items: center;
+            justify-content: center;
+            z-index: 1000; /* Garante que fique acima de tudo */
+        }
+        .popup-content {
+            background-color: #1e293b; /* bg-slate-800, igual aos seus modais */
+            padding: 2rem;
+            border-radius: 0.75rem;
+            border: 1px solid #334155; /* slate-700 */
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            max-width: 90%;
+            max-height: 90%;
+            overflow-y: auto;
+            position: relative;
+        }
+        .close-button {
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            font-size: 30px;
+            cursor: pointer;
+            color: #94a3b8; /* slate-400 */
+            transition: color 0.2s;
+        }
+        .close-button:hover {
+            color: #f1f5f9; /* slate-100 */
+        }
+        .score-image {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            border-radius: 4px;
+        }
+        /* ▲▲▲ FIM DO NOVO CÓDIGO CSS PARA O POP-UP AQUI ▲▲▲ */
     </style>
 </head>
 <body>
@@ -287,6 +355,17 @@
         </div>
     </div>
 
+    <button id="helpIcon" class="help-icon">?</button>
+
+    <div id="scoreRulesPopup" class="popup-overlay">
+        <div class="popup-content">
+            <span class="close-button" id="closePopupBtn">&times;</span>
+            
+            <h2 class="text-2xl font-bold text-teal-400 mb-4">Padrões de Pontuação</h2>
+            
+            <img src="imagens/tabela_pontos.png" alt="Tabela de Padrões de Pontuação" class="score-image">
+        </div>
+    </div>
 
     <!-- ===== SCRIPT DO JOGO (JAVASCRIPT) ===== -->
     <script type="module">
@@ -1215,9 +1294,33 @@
         document.getElementById('lobby').classList.add('fixed', 'inset-0', 'flex', 'items-center', 'p-8');
         gameContainerEl.classList.add('hidden');
 
+        // ▼▼▼ COLE O CÓDIGO JAVASCRIPT DO POP-UP AQUI ▼▼▼
+        const helpIcon = document.getElementById('helpIcon');
+        const scoreRulesPopup = document.getElementById('scoreRulesPopup');
+        const closePopupBtn = document.getElementById('closePopupBtn');
+
+        // Abre o pop-up ao clicar no ícone de ajuda
+        helpIcon.addEventListener('click', () => {
+            scoreRulesPopup.style.display = 'flex'; // Usamos 'flex' por causa do CSS
+        });
+
+        // Fecha o pop-up ao clicar no botão 'X'
+        closePopupBtn.addEventListener('click', () => {
+            scoreRulesPopup.style.display = 'none';
+        });
+
+        // Fecha o pop-up ao clicar fora do conteúdo (no overlay escuro)
+        scoreRulesPopup.addEventListener('click', (event) => {
+            if (event.target === scoreRulesPopup) {
+                scoreRulesPopup.style.display = 'none';
+            }
+        });
+        // ▲▲▲ O CÓDIGO JAVASCRIPT DO POP-UP TERMINA AQUI ▲▲▲
+        
     </script>
 </body>
 </html>
+
 
 
 
