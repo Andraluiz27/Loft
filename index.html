@@ -701,7 +701,6 @@
         async function handleBoardCellClick(row, col) {
             let gs = JSON.parse(JSON.stringify(localGameState));
 
-            // NOVA LÓGICA: Permite a jogada se for o seu turno OU se for a vez da CPU
             const isMyTurn = gs.currentPlayerId === localPlayerId;
             const isCpuTurn = gs.gameMode === 'cpu' && gs.currentPlayerId === 'player2';
 
@@ -713,7 +712,6 @@
                 const playKey = `${row},${col}`;
                 let play = gs.playsThisTurn[playKey] || { player1: null, player2: null };
 
-                // NOVA LÓGICA: Descobre quem está agindo (player1 ou player2) para tirar a carta da mão certa
                 const actingPlayer = gs.currentPlayerId; 
 
                 if (play[actingPlayer]) return;
@@ -725,6 +723,7 @@
                 
                 selectedCard = null;
                 const currentPlay = gs.playsThisTurn[playKey];
+                
                 if (currentPlay.player1 && currentPlay.player2) {
                     gs.spacesPlayedInRow++;
                     gs.currentPlayerId = gs.turnStarter;
@@ -737,7 +736,8 @@
                         gs.statusMessage = `Vez de ${gs.players[gs.currentPlayerId].name} jogar no próximo espaço.`;
                     }
                 } else {
-                    const otherPlayer = localPlayerId === 'player1' ? 'player2' : 'player1';
+                    // CORREÇÃO: Alterna a vez baseado em quem acabou de jogar
+                    const otherPlayer = actingPlayer === 'player1' ? 'player2' : 'player1';
                     gs.currentPlayerId = otherPlayer;
                     gs.statusMessage = `Vez de ${gs.players[otherPlayer].name} jogar no mesmo espaço.`;
                 }
@@ -776,7 +776,7 @@
                 localGameState = gs; 
                 updateUI(); 
                 if (gs.currentPlayerId === 'player2' && gs.phase === 'SELECAO_CARTAS') {
-                    setTimeout(() => runCpuTurn(gs), 1000);
+                    setTimeout(() => runCpuTurn(localGameState), 1000);
                 }
             } else { await updateFirestoreState(gs); }
         }
@@ -827,6 +827,11 @@
                 gs = prepareNextTurn(gs);
                 localGameState = gs;
                 updateUI();
+                
+                // CORREÇÃO: Acorda a CPU se o novo turno começar por ela
+                if (gs.currentPlayerId === 'player2') {
+                    setTimeout(() => runCpuTurn(localGameState), 1000);
+                }
             } else {
                 await updateFirestoreState(gs);
             }
@@ -943,15 +948,14 @@
                 await delay(500);
             }
 
+            // ... (o começo da startRowResolution fica igual)
             if (gs.currentRow >= 2) {
                 let p1Clocks = 0, p2Clocks = 0;
-                // --- CÓDIGO CORRIGIDO ---
-                const p1Style = gs.players.player1.style; // Pega o estilo real do player 1
+                const p1Style = gs.players.player1.style; 
 
                 for(let r=0; r<3; r++) for(let c=0; c<3; c++) {
                     const card = gs.board[r][c]?.card;
                     if (card?.tipo === 'Relogio') {
-                        // Compara o dono da carta com o estilo do player 1
                         if (card.dono === p1Style) {
                             p1Clocks++;
                         } else {
@@ -959,7 +963,6 @@
                         }
                     }
                 }
-                // --- FIM DA CORREÇÃO ---
 
                 const p1HasPower = p1Clocks >= 2 && p2Clocks < 2;
                 const p2HasPower = p2Clocks >= 2 && p1Clocks < 2;
@@ -980,7 +983,15 @@
                 gs.highlightedCell = [gs.currentRow, 0];
                 gs.phase = 'SELECAO_CARTAS';
                 gs.statusMessage = `Prepare-se para a linha ${gs.currentRow + 1}. Vez de ${gs.players[gs.currentPlayerId].name}.`;
-                if (gs.gameMode === 'cpu') { localGameState = gs; updateUI(); } 
+                
+                if (gs.gameMode === 'cpu') { 
+                    localGameState = gs; 
+                    updateUI(); 
+                    // CORREÇÃO: Acorda a CPU se for a vez dela iniciar a nova linha
+                    if (gs.currentPlayerId === 'player2') {
+                        setTimeout(() => runCpuTurn(localGameState), 1000);
+                    }
+                } 
                 else { await updateFirestoreState(gs); }
             }
         }
