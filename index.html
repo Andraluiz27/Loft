@@ -992,7 +992,19 @@
             }
 
             if (gs.gameMode === 'cpu') { localGameState = gs; updateUI(); } 
-            else { await updateFirestoreState(gs); }
+                // 1. Sincroniza o estado global com as mudanças feitas nesta função
+                localGameState = gs; 
+            
+                // 2. FORÇA a interface a redesenhar o tabuleiro e a mão
+                updateUI(); 
+                
+                // 3. Se agora for a vez da CPU, agendamos a próxima jogada
+                if (gs.currentPlayerId === 'player2' && gs.phase === 'SELECAO_CARTAS') {
+                    setTimeout(runCpuTurn, 1000); 
+                }
+            } else { 
+            // Se for online, o Firebase cuida da sincronização
+            await updateFirestoreState(gs); 
         }
 
         function calculateScores(gs) {
