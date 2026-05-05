@@ -701,7 +701,11 @@
         async function handleBoardCellClick(row, col) {
             let gs = JSON.parse(JSON.stringify(localGameState));
 
-            if (gs.phase === 'SELECAO_CARTAS' && gs.currentPlayerId === localPlayerId) {
+            // NOVA LÓGICA: Permite a jogada se for o seu turno OU se for a vez da CPU
+            const isMyTurn = gs.currentPlayerId === localPlayerId;
+            const isCpuTurn = gs.gameMode === 'cpu' && gs.currentPlayerId === 'player2';
+
+            if (gs.phase === 'SELECAO_CARTAS' && (isMyTurn || isCpuTurn)) {
                 if (!selectedCard) { statusMessageEl.textContent = "Selecione uma carta da sua mão primeiro!"; return; }
                 const highlighted = gs.highlightedCell;
                 if (!highlighted || highlighted[0] !== row || highlighted[1] !== col) { statusMessageEl.textContent = "Você só pode jogar no espaço destacado."; return; }
@@ -709,11 +713,14 @@
                 const playKey = `${row},${col}`;
                 let play = gs.playsThisTurn[playKey] || { player1: null, player2: null };
 
-                if (play[localPlayerId]) return;
+                // NOVA LÓGICA: Descobre quem está agindo (player1 ou player2) para tirar a carta da mão certa
+                const actingPlayer = gs.currentPlayerId; 
 
-                const player = gs.players[localPlayerId];
+                if (play[actingPlayer]) return;
+
+                const player = gs.players[actingPlayer];
                 player.hand = player.hand.filter(c => c.id !== selectedCard.id);
-                play[localPlayerId] = { card: selectedCard, chip: 0 };
+                play[actingPlayer] = { card: selectedCard, chip: 0 };
                 gs.playsThisTurn[playKey] = play;
                 
                 selectedCard = null;
