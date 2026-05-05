@@ -704,6 +704,10 @@
         async function handleBoardCellClick(row, col) {
             let gs = JSON.parse(JSON.stringify(localGameState));
 
+            // NOVA CONDIÇÃO: Permite a jogada se for VOCÊ ou se for a CPU no modo local
+            const isCpuTurn = gs.gameMode === 'cpu' && gs.currentPlayerId === 'player2';
+            const isMyTurn = gs.currentPlayerId === localPlayerId;
+
             if (gs.phase === 'SELECAO_CARTAS' && gs.currentPlayerId === localPlayerId) {
                 if (!selectedCard) { statusMessageEl.textContent = "Selecione uma carta da sua mão primeiro!"; return; }
                 const highlighted = gs.highlightedCell;
@@ -1165,13 +1169,16 @@
             if (gs.currentPlayerId !== 'player2' || gs.phase !== 'SELECAO_CARTAS') return;
         
             const cpu = gs.players.player2;
-            // A CPU escolhe a primeira carta da mão que ainda não foi jogada
+            // CPU escolhe a primeira carta disponível
             const cardToPlay = cpu.hand[0]; 
         
             if (cardToPlay && gs.highlightedCell) {
-                // Simulamos o clique da CPU selecionando a carta
+                // Define a carta da CPU como a selecionada globalmente para o clique funcionar
                 selectedCard = cardToPlay;
-                // Chamamos a lógica de clique no tabuleiro na célula destacada
+                
+                console.log("CPU jogando carta:", cardToPlay.tipo); // Para você debugar no F12
+                
+                // Executa o clique na célula que o jogo está pedindo (highlightedCell)
                 handleBoardCellClick(gs.highlightedCell[0], gs.highlightedCell[1]);
             }
         }
