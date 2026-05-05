@@ -767,12 +767,15 @@
             
             if (gs.gameMode === 'cpu') { 
                 localGameState = gs; 
-                updateUI(); 
+                updateUI(); // Força a atualização da tela para liberar os cliques
+                
+                // Se agora for a vez da CPU, agende a jogada dela
                 if (gs.currentPlayerId === 'player2' && gs.phase === 'SELECAO_CARTAS') {
-                    setTimeout(() => runCpuTurn(gs), 1000);
+                    setTimeout(() => runCpuTurn(localGameState), 1000);
                 }
-            } else { await updateFirestoreState(gs); }
-        }
+            } else { 
+                await updateFirestoreState(gs); 
+            }
         
         function handleChipClick(value, buttonEl) {
              selectedChipValue = value;
@@ -1156,16 +1159,18 @@
         
         // ===== LÓGICA DA CPU (Simplificada) =====
         function runCpuTurn(gs) {
-             if (gs.currentPlayerId !== 'player2' || gs.phase !== 'SELECAO_CARTAS') return;
-
-             if(gs.highlightedCell) {
-                 const cpu = gs.players.player2;
-                 const cardToPlay = cpu.hand[0]; 
-                 if(cardToPlay){
-                    selectedCard = cardToPlay;
-                    handleBoardCellClick(gs.highlightedCell[0], gs.highlightedCell[1]);
-                 }
-             }
+            if (gs.currentPlayerId !== 'player2' || gs.phase !== 'SELECAO_CARTAS') return;
+        
+            const cpu = gs.players.player2;
+            // A CPU escolhe a primeira carta da mão que ainda não foi jogada
+            const cardToPlay = cpu.hand[0]; 
+        
+            if (cardToPlay && gs.highlightedCell) {
+                // Simulamos o clique da CPU selecionando a carta
+                selectedCard = cardToPlay;
+                // Chamamos a lógica de clique no tabuleiro na célula destacada
+                handleBoardCellClick(gs.highlightedCell[0], gs.highlightedCell[1]);
+            }
         }
         
         // ===== LISTENERS DE UI E FIREBASE =====
@@ -1182,9 +1187,14 @@
             gameId = 'local_cpu_game';
             localPlayerId = 'player1';
             localGameState = createInitialGameState(playerName, "CPU", "cpu");
-            localGameState.statusMessage = `${playerName} começa o jogo! Jogue no espaço destacado.`;
+            
             showGameView();
             updateUI();
+        
+            // NOVO: Verifica se a CPU começa
+            if (localGameState.currentPlayerId === 'player2') {
+                setTimeout(() => runCpuTurn(localGameState), 1000);
+            }
         });
         
         document.getElementById('create-game-btn').addEventListener('click', async () => {
