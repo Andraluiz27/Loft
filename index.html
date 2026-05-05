@@ -210,6 +210,19 @@
             display: block;
             border-radius: 4px;
         }
+        /* Seleciona o container da carta (ajuste a classe se necessário) */
+        .card {
+            transition: transform 0.2s ease-in-out; /* Transição suave */
+            z-index: 1;
+        }
+        
+        /* Efeito ao passar o mouse */
+        .card:hover {
+            transform: scale(1.5); /* Aumenta a carta em 50% */
+            z-index: 100;          /* Garante que a carta fique por cima das outras */
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5); /* Sombra para dar profundidade */
+            cursor: pointer;
+        }
         /* ▲▲▲ FIM DO NOVO CÓDIGO CSS PARA O POP-UP AQUI ▲▲▲ */
     </style>
 </head>
