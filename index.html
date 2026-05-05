@@ -21,16 +21,32 @@
             background-position: center;
         }
         .card {
-            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s;
             background-size: cover;
             background-position: center;
             border-radius: 8px;
             border: 2px solid transparent;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            position: relative; /* Necessário para a área de segurança */
+            z-index: 1;
         }
+        
         .card:hover {
-            transform: translateY(-5px) scale(1.05);
-            box-shadow: 0 0 15px rgba(255, 255, 255, 0.2);
+            transform: scale(1.5); /* Mantemos o zoom que você quer */
+            z-index: 100; /* Garante que fique na frente de tudo */
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.6);
+            cursor: pointer;
+        }
+        
+        /* Isso cria uma "caixa invisível" ao redor da carta no hover, 
+           impedindo que o mouse "saia" dela acidentalmente enquanto ela cresce */
+        .card:hover::after {
+            content: "";
+            position: absolute;
+            top: -20%;
+            left: -20%;
+            width: 140%;
+            height: 140%;
+            z-index: -1; 
         }
         .card.selected {
             border-color: #38bdf8; /* border-sky-400 */
@@ -209,19 +225,6 @@
             height: auto;
             display: block;
             border-radius: 4px;
-        }
-        /* Seleciona o container da carta (ajuste a classe se necessário) */
-        .card {
-            transition: transform 0.2s ease-in-out; /* Transição suave */
-            z-index: 1;
-        }
-        
-        /* Efeito ao passar o mouse */
-        .card:hover {
-            transform: scale(1.5); /* Aumenta a carta em 50% */
-            z-index: 100;          /* Garante que a carta fique por cima das outras */
-            box-shadow: 0 10px 20px rgba(0,0,0,0.5); /* Sombra para dar profundidade */
-            cursor: pointer;
         }
         /* ▲▲▲ FIM DO NOVO CÓDIGO CSS PARA O POP-UP AQUI ▲▲▲ */
     </style>
@@ -776,7 +779,7 @@
             } else { 
                 await updateFirestoreState(gs); 
             }
-        
+        }
         function handleChipClick(value, buttonEl) {
              selectedChipValue = value;
              document.querySelectorAll('.chip-btn').forEach(btn => btn.classList.remove('selected'));
@@ -1191,7 +1194,7 @@
             showGameView();
             updateUI();
         
-            // NOVO: Verifica se a CPU começa
+            // Se o sorteio decidir que a CPU (player2) começa, ela joga agora:
             if (localGameState.currentPlayerId === 'player2') {
                 setTimeout(() => runCpuTurn(localGameState), 1000);
             }
