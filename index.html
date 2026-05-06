@@ -860,14 +860,37 @@
 
              if (gs.gameMode === 'cpu') { 
                 const cpu = gs.players.player2;
-                for(let col=0; col<3; col++){
+                let chipsUsadosNaLinha = 0; // Limita a 1 ficha por linha
+
+                for (let col = 0; col < 3; col++) {
                     const play = gs.playsThisTurn[`${gs.currentRow},${col}`];
-                    if(play?.player2){
+                    
+                    if (play?.player2 && chipsUsadosNaLinha === 0) {
                         const cardVal = play.player2.card.valor;
-                        if(cardVal > 30 && cpu.chips[7] > 0){ play.player2.chip = 7; cpu.chips[7]--; }
-                        else if (cardVal > 20 && cpu.chips[5] > 0){ play.player2.chip = 5; cpu.chips[5]--; }
+                        const isCentro = (gs.currentRow === 1 && col === 1); // Meio exato do tabuleiro
+                        
+                        // Turnos iniciais = menor chance de gastar. Centro = chance máxima (100%).
+                        let chanceDeUsar = isCentro ? 1.0 : (gs.turn * 0.20); 
+
+                        // Rola o "dado" de probabilidade da CPU
+                        if (Math.random() <= chanceDeUsar) {
+                            
+                            // Privilegia usar a ficha 7 em cartas muito fortes ou no centro
+                            if ((cardVal > 28 || isCentro) && cpu.chips[7] > 0) { 
+                                play.player2.chip = 7; 
+                                cpu.chips[7]--; 
+                                chipsUsadosNaLinha++;
+                            }
+                            // Usa a ficha 5 em cartas razoáveis ou se a de 7 acabou
+                            else if ((cardVal > 15 || isCentro) && cpu.chips[5] > 0) { 
+                                play.player2.chip = 5; 
+                                cpu.chips[5]--; 
+                                chipsUsadosNaLinha++;
+                            }
+                        }
                     }
                 }
+                
                 gs.confirmations.player2 = true;
                 localGameState = gs;
                 updateUI();
