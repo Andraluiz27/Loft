@@ -21,12 +21,14 @@
             background-position: center;
         }
         .card {
-            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
-            background-size: cover;
-            background-position: center;
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s;
             border-radius: 8px;
             border: 2px solid transparent;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            
+            /* MUDANÇA AQUI: Mesma lógica para as cartas da mão */
+            background-size: 100% 100%; 
+            background-repeat: no-repeat;
+            background-position: center;
         }
         .card:hover {
             transform: translateY(-5px) scale(1.05);
@@ -40,13 +42,27 @@
 
         .board-cell {
             position: relative;
-            background-color: rgba(255, 255, 255, 0.05); /* Um leve brilho para ver onde clicar */
+            background-color: rgba(255, 255, 255, 0.05);
             border-radius: 8px;
             border: 2px solid transparent;
-            
-            /* Isso garante que a célula seja um retângulo de pé, mesmo vazia */
             aspect-ratio: 3 / 4; 
             width: 100%;
+            
+            /* Configurações de imagem */
+            background-repeat: no-repeat;
+            background-position: center;
+            
+            /* Se as suas imagens originais forem horizontais, 
+               esta linha faz com que elas tentem caber sem distorcer: */
+            background-size: contain; 
+        }
+
+        /* Se quiser que a imagem realmente gire 90 graus para ocupar o espaço vertical: */
+        .board-cell[style*="background-image"] {
+            /* Esta técnica gira a imagem de fundo (background) */
+            /* Nota: Dependendo de como a imagem foi salva, pode ser necessário 
+               mudar background-size para 100% ou contain */
+            transform: rotate(0deg); /* Começamos com zero */
         }
         
         /* Ajuste específico para que as cartas da mão não fiquem gigantes no hover do celular */
@@ -654,6 +670,10 @@
 
                     if (cellState?.card) {
                          cellEl.style.backgroundImage = `url('${cellState.card.imagem}')`;
+                         cellEl.style.backgroundSize = "contain"; // Mantém a proporção original da carta
+                         cellEl.style.backgroundRepeat = "no-repeat";
+                         cellEl.style.transform = "rotate(0deg)"; // Se precisar girar, mude para "90deg"
+                    }
                     } else if (cellState?.annulled) {
                         cellEl.style.backgroundColor = 'rgba(100, 20, 20, 0.5)';
                         cellEl.textContent = "Anulado";
