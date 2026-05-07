@@ -607,13 +607,11 @@
             const opponentId = localPlayerId === 'player1' ? 'player2' : 'player1';
             const opponent = localGameState.players[opponentId];
 
-            // --- LÓGICA DE CORES E ESTILOS (NOVO) ---
             const playerColorClass = `text-${player.style === 'moderno' ? 'sky' : 'fuchsia'}-400`;
             const opponentColorClass = `text-${opponent.style === 'moderno' ? 'sky' : 'fuchsia'}-400`;
             
             const playerBorderClass = `border-${player.style}`;
             const opponentBorderClass = `border-${opponent.style}`;
-            // --- FIM DA LÓGICA DE CORES ---
 
             const capitalize = s => s.charAt(0).toUpperCase() + s.slice(1);
             document.getElementById('player-name').innerHTML = `<h2 id="player-name" class="text-xl font-bold ${playerColorClass}">${player.name} (${capitalize(player.style)})</h2>`;
@@ -632,13 +630,11 @@
             const playerPanel = document.getElementById('player-panel');
             const opponentPanel = document.getElementById('opponent-panel');
             
-            // Remove classes antigas e aplica as novas
             playerPanel.classList.remove('border-moderno', 'border-extravagante');
             opponentPanel.classList.remove('border-moderno', 'border-extravagante');
             playerPanel.classList.add(playerBorderClass);
             opponentPanel.classList.add(opponentBorderClass);
 
-            // Controla a opacidade da borda para indicar o turno
             playerPanel.style.borderColor = myTurn ? '' : 'transparent';
             opponentPanel.style.borderColor = !myTurn ? '' : 'transparent';
             
@@ -659,21 +655,18 @@
             for (let i = 0; i < 3; i++) {
                 for (let j = 0; j < 3; j++) {
                     const cellEl = document.createElement('div');
-                    // Procure esta linha dentro da função updateUI() no loop do board:
                     cellEl.className = 'board-cell flex items-center justify-center text-white font-bold text-sm md:text-lg';
-                    // Note que removi w-32 h-24 etc. O aspect-ratio do CSS cuidará do tamanho.
                     cellEl.dataset.row = i;
                     cellEl.dataset.col = j;
                     
                     const cellState = localGameState.board[i][j];
                     const playData = localGameState.playsThisTurn[`${i},${j}`];
 
+                    // LOGICA DE RENDERIZAÇÃO DAS CARTAS NO TABULEIRO
                     if (cellState?.card) {
                          cellEl.style.backgroundImage = `url('${cellState.card.imagem}')`;
-                         cellEl.style.backgroundSize = "contain"; // Mantém a proporção original da carta
+                         cellEl.style.backgroundSize = "100% 100%"; // Preenchimento vertical total
                          cellEl.style.backgroundRepeat = "no-repeat";
-                         cellEl.style.transform = "rotate(0deg)"; // Se precisar girar, mude para "90deg"
-                    }
                     } else if (cellState?.annulled) {
                         cellEl.style.backgroundColor = 'rgba(100, 20, 20, 0.5)';
                         cellEl.textContent = "Anulado";
@@ -685,10 +678,8 @@
                     if (playData) {
                         const indicatorContainer = document.createElement('div');
                         indicatorContainer.className = 'chip-indicator-container';
-
                         if (playData.player1?.chip > 0) {
                             const p1Chip = document.createElement('div');
-                            // CORRIGIDO: Usa o estilo do player1
                             const p1Style = localGameState.players.player1.style;
                             p1Chip.className = `chip-indicator chip-${p1Style}`; 
                             p1Chip.textContent = playData.player1.chip;
@@ -696,7 +687,6 @@
                         }
                         if (playData.player2?.chip > 0) {
                             const p2Chip = document.createElement('div');
-                            // CORRIGIDO: Usa o estilo do player2
                             const p2Style = localGameState.players.player2.style;
                             p2Chip.className = `chip-indicator chip-${p2Style}`;
                             p2Chip.textContent = playData.player2.chip;
@@ -709,65 +699,30 @@
                         cellEl.classList.add('highlight');
                     }
                     
-                    if (localGameState.swapSelection?.includes(`${i},${j}`)) {
-                        cellEl.classList.add('swap-selection');
-                    }
-                    
                     cellEl.onclick = () => handleBoardCellClick(i, j);
                     boardEl.appendChild(cellEl);
                 }
-            }
+            } // FIM DO LOOP DO TABULEIRO
             
-            // CORRIGIDO: Passa o ESTILO para a função
             renderChipInventory('player-chips', player.chips, player.style);
             renderChipInventory('opponent-chips', opponent.chips, opponent.style);
 
-            // O resto da função permanece igual...
             const chipPanel = document.getElementById('chip-panel');
             const nextTurnBtn = document.getElementById('next-turn-btn');
             const confirmChipsBtn = document.getElementById('confirm-chips-btn');
-            const confirmSwapBtn = document.getElementById('confirm-swap-btn');
 
             chipPanel.classList.toggle('hidden', localGameState.phase !== 'SELECAO_FICHAS');
-            if (localGameState.phase === 'SELECAO_FICHAS') {
-                const chipButtonsEl = document.getElementById('chip-buttons');
-                chipButtonsEl.innerHTML = '';
-                if (!localGameState.confirmations[localPlayerId]) {
-                    [...Array(player.chips[5])].forEach(() => createChipButton(5, chipButtonsEl));
-                    [...Array(player.chips[7])].forEach(() => createChipButton(7, chipButtonsEl));
-                    confirmChipsBtn.disabled = false;
-                    confirmChipsBtn.textContent = 'Confirmar Fichas';
-                } else {
-                    confirmChipsBtn.disabled = true;
-                    confirmChipsBtn.textContent = 'Aguardando Oponente';
-                }
-            }
             
             if (localGameState.phase === 'FIM_TURNO') {
-                if (!localGameState.nextTurnConfirmations[localPlayerId]) {
-                    nextTurnBtn.classList.remove('hidden');
-                    nextTurnBtn.disabled = false;
-                    nextTurnBtn.textContent = 'Próximo Turno';
-                } else {
-                    nextTurnBtn.classList.remove('hidden');
-                    nextTurnBtn.disabled = true;
-                    nextTurnBtn.textContent = 'Aguardando Oponente...';
-                }
+                nextTurnBtn.classList.remove('hidden');
+                nextTurnBtn.disabled = localGameState.nextTurnConfirmations[localPlayerId];
             } else {
                 nextTurnBtn.classList.add('hidden');
             }
-            
-            const canSwap = localGameState.phase === 'TROCA_RELOGIO' && 
-                            localGameState.clockPowerPlayer === localPlayerId && 
-                            localGameState.swapSelection?.length === 2;
-            confirmSwapBtn.classList.toggle('hidden', !canSwap);
-
 
             if (localGameState.phase === 'FIM_JOGO') {
                 endGameModalEl.classList.remove('hidden');
                 document.getElementById('winner-text').textContent = localGameState.winner;
-                document.getElementById('final-score-player').textContent = `${player.name}: ${player.points}`;
-                document.getElementById('final-score-opponent').textContent = `${opponent.name}: ${opponent.points}`;
             }
 
             if (localGameState.phase === 'REVELACAO_EMBATE' && localGameState.clashColumn !== null) {
@@ -778,7 +733,7 @@
             } else {
                 clashModalEl.classList.add('hidden');
             }
-        }
+        } // FIM DA FUNÇÃO updateUI
         
         function createChipButton(value, container) {
             const chipBtn = document.createElement('button');
