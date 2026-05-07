@@ -1069,12 +1069,24 @@
                 const p1HasPower = p1Clocks >= 2 && p2Clocks < 2;
                 const p2HasPower = p2Clocks >= 2 && p1Clocks < 2;
 
+                // Procure este bloco quase no fim da startRowResolution:
                 if (p1HasPower || p2HasPower) {
                     gs.phase = 'TROCA_RELOGIO';
                     gs.clockPowerPlayer = p1HasPower ? 'player1' : 'player2';
                     gs.swapSelection = [];
                     gs.statusMessage = `Poder do relógio! ${gs.players[gs.clockPowerPlayer].name}, selecione 2 cartas para trocar.`;
-                    if (gs.gameMode === 'online') await updateFirestoreState(gs); else { localGameState = gs; updateUI(); }
+                    
+                    if (gs.gameMode === 'cpu') {
+                        localGameState = gs;
+                        updateUI();
+                        
+                        // SE O PODER FOR DA CPU, CHAMA A FUNÇÃO ESTRATÉGICA
+                        if (gs.clockPowerPlayer === 'player2') {
+                            setTimeout(executarTrocaRelogioCPU, 2000); // 2 segundos para o jogador ler o status
+                        }
+                    } else {
+                        await updateFirestoreState(gs);
+                    }
                 } else {
                     proceedToScoring(gs);
                 }
@@ -1286,6 +1298,69 @@
                     handleBoardCellClick(gs.highlightedCell[0], gs.highlightedCell[1]);
                  }
              }
+        }
+
+        function executarTrocaRelogioCPU() {
+            let gs = JSON.parse(JSON.stringify(localGameState));
+            const cpuStyle = gs.players.player2.style;
+            const playerStyle = gs.players.player1.style;
+        
+            // --- FUNÇÃO PARA VERIFICAR LINHAS COMPLETAS (PROTEÇÃO) ---
+            const estaEmLinhaCompleta = (r, c, estilo) => {
+                const linhas = [
+                    [[0,0],[0,1],[0,2]], [[1,0],[1,1],[1,2]], [[2,0],[2,1],[2,2]], // Horizontais
+                    [[0,0],[1,0],[2,0]], [[0,1],[1,1],[2,1]], [[0,2],[1,2],[2,2]], // Verticais
+                    [[0,0],[1,1],[2,2]], [[0,2],[1,1],[2,0]]                      // Diagonais
+                ];
+                return linhas.some(linha => {
+                    const contemPosicao = linha.some(p => p[0] === r && p[1] === c);
+                    const todasDoEstilo = linha.every(p => gs.board[p[0]][p[1]]?.card?.dono === estilo);
+                    return contemPosicao && todasDoEstilo;
+                });
+            };
+        
+            // --- ESCOLHA DA CARTA DA CPU PARA MOVER ---
+            let melhorCartaCPU = null;
+            let candidatasCPU = [];
+        
+            for(let r=0; r<3; r++) {
+                for(let c=0; c<3; c++) {
+                    const celula = gs.board[r][c];
+                    if(celula?.card?.dono === cpuStyle) {
+                        const ehCentroProtegido = (r === 1 && c === 1 && (celula.card.tipo === 'Mesa de Centro' || celula.card.tipo === 'Tapete'));
+                        const ehLinhaProtegida = estaEmLinhaCompleta(r, c, cpuStyle);
+                        
+                        if(!ehCentroProtegido && !ehLinhaProtegida) candidatasCPU.push({r, c});
+                    }
+                }
+            }
+            melhorCartaCPU = candidatasCPU.length > 0 ? candidatasCPU[0] : null;
+        
+            // --- ESCOLHA DO ALVO PARA TROCAR (SABOTAGEM) ---
+            if(melhorCartaCPU) {
+                let alvoTroca = null;
+                for(let r=0; r<3; r++) {
+                    for(let c=0; c<3; c++) {
+                        if(gs.board[r][c]?.card?.dono === playerStyle && !estaEmLinhaCompleta(r, c, playerStyle)) {
+                            alvoTroca = {r, c};
+                            break;
+                        }
+                    }
+                }
+        
+                if(alvoTroca) {
+                    const temp = gs.board[melhorCartaCPU.r][melhorCartaCPU.c];
+                    gs.board[melhorCartaCPU.r][melhorCartaCPU.c] = gs.board[alvoTroca.r][alvoTroca.c];
+                    gs.board[alvoTroca.r][alvoTroca.c] = temp;
+                }
+            }
+        
+            gs.swapSelection = [];
+            gs.clockPowerPlayer = null;
+            gs.phase = 'PONTUACAO';
+            localGameState = gs;
+            updateUI();
+            setTimeout(() => proceedToScoring(localGameState), 1200);
         }
         
         // ===== LISTENERS DE UI E FIREBASE =====
