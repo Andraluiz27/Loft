@@ -36,14 +36,26 @@
             border-color: #38bdf8; /* border-sky-400 */
             box-shadow: 0 0 20px #38bdf8;
         }
+        /* No seu CSS, substitua ou adicione estas regras */
+
         .board-cell {
-            position: relative; /* Necessário para posicionar os indicadores de ficha */
+            position: relative;
             background-color: rgba(255, 255, 255, 0.05);
             border-radius: 8px;
-            transition: background-color 0.3s, border 0.3s, transform 0.5s;
+            transition: all 0.3s;
             border: 2px solid transparent;
             background-size: cover;
             background-position: center;
+            /* Mudança: Ocupa a largura disponível sem forçar pixels fixos */
+            aspect-ratio: 4 / 3; 
+            width: 100%;
+        }
+        
+        /* Ajuste específico para que as cartas da mão não fiquem gigantes no hover do celular */
+        @media (max-width: 768px) {
+            .card:hover {
+                transform: scale(1.2); /* Zoom menor no mobile para não cobrir a tela toda */
+            }
         }
         .board-cell.highlight {
             background-color: rgba(45, 212, 191, 0.2); /* teal-400 com opacidade */
@@ -342,28 +354,26 @@
         </div>
     </div>
 
-    <!-- Modal de Embate -->
-    <div id="clash-modal" class="hidden modal-overlay backdrop-blur-sm">
-        <div class="w-full max-w-4xl flex justify-around items-center gap-4 p-4">
-            <!-- Carta do Jogador 1 -->
+    <div id="clash-modal" class="hidden modal-overlay backdrop-blur-sm p-4">
+        <div class="w-full max-w-4xl flex flex-col md:flex-row justify-around items-center gap-6">
+            
             <div id="clash-p1-container" class="clash-card-container flex flex-col items-center gap-2">
-                <h3 id="clash-p1-name" class="text-2xl font-bold text-sky-400"></h3>
-                <div id="clash-p1-card" class="w-48 h-32 md:w-64 md:h-48 rounded-lg" style="background-size: cover; background-position: center;"></div>
-                <div class="text-center">
-                    <p class="text-lg">Carta: <span id="clash-p1-card-value"></span> + Ficha: <span id="clash-p1-chip-value"></span></p>
-                    <p class="text-2xl font-bold">Total: <span id="clash-p1-total"></span></p>
+                <h3 id="clash-p1-name" class="text-xl md:text-2xl font-bold text-sky-400 text-center"></h3>
+                <div id="clash-p1-card" class="w-40 h-28 md:w-64 md:h-48 rounded-lg shadow-lg" style="background-size: cover; background-position: center;"></div>
+                <div class="text-center bg-slate-900/60 p-2 rounded-md">
+                    <p class="text-sm md:text-lg">Carta: <span id="clash-p1-card-value"></span> + Ficha: <span id="clash-p1-chip-value"></span></p>
+                    <p class="text-xl md:text-2xl font-bold">Total: <span id="clash-p1-total"></span></p>
                 </div>
             </div>
             
-            <p id="vs-text" class="text-5xl font-black text-slate-400">VS</p>
-
-            <!-- Carta do Jogador 2 -->
+            <p id="vs-text" class="text-3xl md:text-5xl font-black text-slate-400 my-2">VS</p>
+    
             <div id="clash-p2-container" class="clash-card-container flex flex-col items-center gap-2">
-                <h3 id="clash-p2-name" class="text-2xl font-bold text-fuchsia-400"></h3>
-                <div id="clash-p2-card" class="w-48 h-32 md:w-64 md:h-48 rounded-lg" style="background-size: cover; background-position: center;"></div>
-                <div class="text-center">
-                    <p class="text-lg">Carta: <span id="clash-p2-card-value"></span> + Ficha: <span id="clash-p2-chip-value"></span></p>
-                    <p class="text-2xl font-bold">Total: <span id="clash-p2-total"></span></p>
+                <h3 id="clash-p2-name" class="text-xl md:text-2xl font-bold text-fuchsia-400 text-center"></h3>
+                <div id="clash-p2-card" class="w-40 h-28 md:w-64 md:h-48 rounded-lg shadow-lg" style="background-size: cover; background-position: center;"></div>
+                <div class="text-center bg-slate-900/60 p-2 rounded-md">
+                    <p class="text-sm md:text-lg">Carta: <span id="clash-p2-card-value"></span> + Ficha: <span id="clash-p2-chip-value"></span></p>
+                    <p class="text-xl md:text-2xl font-bold">Total: <span id="clash-p2-total"></span></p>
                 </div>
             </div>
         </div>
@@ -629,7 +639,9 @@
             for (let i = 0; i < 3; i++) {
                 for (let j = 0; j < 3; j++) {
                     const cellEl = document.createElement('div');
-                    cellEl.className = 'board-cell flex items-center justify-center text-white font-bold text-lg w-32 h-24 md:w-40 md:h-28';
+                    // Procure esta linha dentro da função updateUI() no loop do board:
+                    cellEl.className = 'board-cell flex items-center justify-center text-white font-bold text-sm md:text-lg';
+                    // Note que removi w-32 h-24 etc. O aspect-ratio do CSS cuidará do tamanho.
                     cellEl.dataset.row = i;
                     cellEl.dataset.col = j;
                     
