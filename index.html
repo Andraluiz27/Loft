@@ -704,6 +704,20 @@
             const confirmChipsBtn = document.getElementById('confirm-chips-btn');
 
             chipPanel.classList.toggle('hidden', localGameState.phase !== 'SELECAO_FICHAS');
+
+            if (localGameState.phase === 'SELECAO_FICHAS') {
+                const chipButtonsEl = document.getElementById('chip-buttons');
+                chipButtonsEl.innerHTML = ''; // Limpa para não duplicar
+                
+                if (!localGameState.confirmations[localPlayerId]) {
+                    // Gera os botões clicáveis baseados nas fichas que o jogador ainda tem
+                    [...Array(player.chips[5])].forEach(() => createChipButton(5, chipButtonsEl));
+                    [...Array(player.chips[7])].forEach(() => createChipButton(7, chipButtonsEl));
+                    confirmChipsBtn.disabled = false;
+                } else {
+                    confirmChipsBtn.disabled = true;
+                }
+            }
             
             if (localGameState.phase === 'FIM_TURNO') {
                 nextTurnBtn.classList.remove('hidden');
