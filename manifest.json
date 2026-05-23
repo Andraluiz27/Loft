@@ -1,13 +1,15 @@
 {
-  "name": "LOFT - O Jogo",
-  "short_name": "LOFT",
-  "start_url": "./index.html",
+  "id": "/Loft/",
+  "name": "Loft",
+  "short_name": "Loft",
+  "start_url": "/Loft/index.html",
+  "scope": "/Loft/",
   "display": "fullscreen",
-  "background_color": "#0f172a",
-  "theme_color": "#0f172a",
+  "background_color": "#000000",
+  "theme_color": "#000000",
   "icons": [
     {
-      "src": "loft.png", 
+      "src": "loft.png",
       "sizes": "256x256",
       "type": "image/png"
     }
